@@ -164,54 +164,6 @@ interface CreditTransferAPIResult {
   payload: any;
 }
 
-function* createTransfer({
-  payload,
-}: {
-  type: typeof CreditTransferActionTypes.CREATE_TRANSFER_REQUEST;
-  payload: any;
-}) {
-  try {
-    const result = yield call(newTransferAPI, payload);
-
-    yield call(updateStateFromCreditTransfer, result);
-
-    yield put(CreditTransferAction.createTransferSuccess());
-  } catch (fetch_error) {
-    const error = yield call(handleError, fetch_error);
-
-    yield put(CreditTransferAction.createTransferFailure(error));
-
-    message.error(error.message);
-  }
-}
-
-function* watchCreateTransfer() {
-  yield takeEvery(
-    CreditTransferActionTypes.CREATE_TRANSFER_REQUEST,
-    createTransfer
-  );
-}
-
-function* loadCreditTransferList({ payload }: CreditTransferListAPIResult) {
-  try {
-    const credit_load_result = yield call(LoadCreditTransferListAPI, payload);
-    yield call(updateStateFromCreditTransfer, credit_load_result);
-    yield put(LoadCreditTransferAction.loadCreditTransferSuccess());
-    if (credit_load_result.items) {
-      yield put(
-        LoadCreditTransferAction.updateCreditTransferPagination(
-          credit_load_result.items
-        )
-      );
-    }
-  } catch (fetch_error) {
-    const error = yield call(handleError, fetch_error);
-    yield put(LoadCreditTransferAction.loadCreditTransferFailure(error));
-
-    message.error(error.message);
-  }
-}
-
 function* watchLoadCreditTransferList() {
   yield takeEvery(
     LoadCreditTransferActionTypes.LOAD_CREDIT_TRANSFER_LIST_REQUEST,

@@ -75,36 +75,6 @@ function* watchLoadOrganisation() {
   );
 }
 
-function* editOrganisation(
-  action: ActionWithPayload<
-    EditOrganisationActionTypes.EDIT_ORGANISATION_REQUEST,
-    EditOrganisationPayload
-  >
-) {
-  try {
-    const load_result = yield call(editOrganisationAPI, action.payload);
-
-    yield call(updateStateFromOrganisation, load_result.data);
-
-    yield put(EditOrganisationAction.editOrganisationSuccess());
-
-    message.success(load_result.message);
-  } catch (fetch_error) {
-    const error = yield call(handleError, fetch_error);
-
-    yield put(EditOrganisationAction.editOrganisationFailure(error.message));
-
-    message.error(error.message);
-  }
-}
-
-function* watchEditOrganisation() {
-  yield takeEvery(
-    EditOrganisationActionTypes.EDIT_ORGANISATION_REQUEST,
-    editOrganisation
-  );
-}
-
 function* createOrganisation(
   action: ActionWithPayload<
     CreateOrganisationActionTypes.CREATE_ORGANISATION_REQUEST,

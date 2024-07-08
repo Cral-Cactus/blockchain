@@ -206,25 +206,6 @@ function* createUser(
   }
 }
 
-function* watchCreateUser() {
-  yield takeEvery(CreateUserActionTypes.CREATE_USER_REQUEST, createUser);
-}
-
-function* loadUserHistory({ payload }: UserLoadHistoryApiResult) {
-  try {
-    const load_result = yield call(loadUserHistoryAPI, payload);
-    yield put(
-      LoadUserHistoryAction.loadUserHistorySuccess(load_result.data.changes)
-    );
-  } catch (fetch_error) {
-    const error = yield call(handleError, fetch_error);
-
-    yield put(LoadUserHistoryAction.loadUserHistoryFailure(error.message));
-
-    message.error(error.message);
-  }
-}
-
 function* watchLoadUserHistory() {
   yield takeEvery(
     LoadUserHistoryActionTypes.LOAD_USER_HISTORY_REQUEST,
