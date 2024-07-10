@@ -155,37 +155,6 @@ function* deleteUser(
   }
 }
 
-function* watchDeleteUser() {
-  yield takeEvery(DeleteUserActionTypes.DELETE_USER_REQUEST, deleteUser);
-}
-
-function* resetPin(
-  action: ActionWithPayload<
-    ResetPinActionTypes.RESET_PIN_REQUEST,
-    ResetPinPayload
-  >
-) {
-  try {
-    const reset_response = yield call(resetPinAPI, action.payload);
-
-    yield call(updateStateFromUser, reset_response.data);
-
-    yield put(ResetPinAction.resetPinSuccess());
-
-    message.success(reset_response.message);
-  } catch (fetch_error) {
-    const error = yield call(handleError, fetch_error);
-
-    yield put(ResetPinAction.resetPinFailure(error.message));
-
-    message.error(error.message);
-  }
-}
-
-function* watchResetPin() {
-  yield takeEvery(ResetPinActionTypes.RESET_PIN_REQUEST, resetPin);
-}
-
 function* createUser(
   action: ActionWithPayload<
     CreateUserActionTypes.CREATE_USER_REQUEST,
