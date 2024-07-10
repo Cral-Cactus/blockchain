@@ -27,12 +27,3 @@ export enum FilterListActionTypes {
     id: number;
     updated: string;
   }
-  
-  export interface CreateFilterPayload {
-    body: CreateFilter;
-  }
-  
-  export interface FilterData {
-    filters: Filter[];
-    filter: Filter;
-  }
