@@ -40,13 +40,6 @@ export const sagaFactory = (
     }
   }
 
-  function* createRequest(action: CreateRequestAction) {
-    yield apiRequest(genericPostAPI, createActionTypes, action);
-  }
-
-  function* modifyRequest(action: ModifyRequestAction) {
-    yield apiRequest(genericPutAPI, modifyActionTypes, action);
-  }
   function* apiRequest(
     apiHandler: (req: ApiRequest) => Result,
     actionType: APILifecycleActionTypesInterface,
@@ -110,16 +103,8 @@ export const sagaFactory = (
     yield takeEvery(loadActionTypes.request(reg.name), loadRequest);
   }
 
-  function* watchCreateRequest() {
-    yield takeEvery(createActionTypes.request(reg.name), createRequest);
-  }
-
-  function* watchModifyRequest() {
-    yield takeEvery(modifyActionTypes.request(reg.name), modifyRequest);
-  }
-
   function* yieldAllSagas() {
-    yield all([watchLoadRequest(), watchCreateRequest(), watchModifyRequest()]);
+    yield all([watchLoadRequest()]);
   }
 
   return yieldAllSagas;
