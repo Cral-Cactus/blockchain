@@ -528,59 +528,6 @@ function* watchUpdateUserRequest() {
   );
 }
 
-const getInviteState = (state: ReduxState): InviteByIDs =>
-  state.adminUsers.invitesById;
-
-function* deleteInvite(
-  action: ActionWithPayload<
-    DeleteInviteActionTypes.DELETE_INVITE_REQUEST,
-    DeleteInvitePayload
-  >
-) {
-  try {
-    const result = yield call(deleteInviteAPI, action.payload);
-    yield put(DeleteInviteAction.deleteInviteSuccess());
-
-    // delete item from local state
-    let inviteState = yield select(getInviteState);
-    let invites = { ...inviteState };
-    delete invites[action.payload.body.invite_id];
-
-    yield put(InviteUserListAction.updateInviteUsers(invites));
-    message.success(result.message);
-  } catch (fetch_error) {
-    const error = yield call(handleError, fetch_error);
-    yield put(DeleteInviteAction.deleteInviteFailure(error.message));
-    message.error(error.message);
-  }
-}
-
-function* watchDeleteInviteRequest() {
-  yield takeEvery(DeleteInviteActionTypes.DELETE_INVITE_REQUEST, deleteInvite);
-}
-
-function* inviteUserRequest(
-  action: ActionWithPayload<
-    InviteUserActionTypes.INVITE_USER_REQUEST,
-    InviteUserPayload
-  >
-) {
-  try {
-    const result = yield call(inviteUserAPI, action.payload);
-    yield put(InviteUserAction.inviteUserSuccess());
-    message.success(result.message);
-    browserHistory.push("/settings/admins");
-  } catch (fetch_error) {
-    const error = yield call(handleError, fetch_error);
-    message.error(error.message);
-    yield put(InviteUserAction.inviteUserFailure(error.message));
-  }
-}
-
-function* watchInviteUserRequest() {
-  yield takeEvery(InviteUserActionTypes.INVITE_USER_REQUEST, inviteUserRequest);
-}
-
 function* adminResetPasswordRequest(
   action: ActionWithPayload<
     AdminResetPasswordActionTypes.ADMIN_RESET_PASSWORD_REQUEST,
