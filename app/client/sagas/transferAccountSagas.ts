@@ -128,36 +128,6 @@ function* watchLoadTransferAccounts() {
   );
 }
 
-function* loadTransferAccountHistory({
-  payload
-}: TransferAccountLoadHistoryApiResult) {
-  try {
-    const load_result = yield call(loadTransferAccountHistoryAPI, payload);
-    yield put(
-      LoadTransferAccountHistoryAction.loadTransferAccountHistorySuccess(
-        load_result.data.changes
-      )
-    );
-  } catch (fetch_error) {
-    const error = yield call(handleError, fetch_error);
-
-    yield put(
-      LoadTransferAccountHistoryAction.loadTransferAccountHistoryFailure(
-        error.message
-      )
-    );
-
-    message.error(error.message);
-  }
-}
-
-function* watchLoadTransferAccountHistory() {
-  yield takeEvery(
-    LoadTransferAccountHistoryActionTypes.LOAD_TRANSFER_ACCOUNT_HISTORY_REQUEST,
-    loadTransferAccountHistory
-  );
-}
-
 function* editTransferAccount({ payload }: TransferAccountEditApiResult) {
   try {
     const edit_response = yield call(editTransferAccountAPI, payload);

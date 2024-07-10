@@ -3,7 +3,7 @@ import { message } from "antd";
 import { browserHistory } from "../createStore";
 
 import { createActionTypes } from "../genericState/actions";
-import { sempoObjects } from "../reducers/rootReducer";
+import { stengoObjects } from "../reducers/rootReducer";
 
 function* navigateToTransfers() {
   message.success("Transfer Created!");
@@ -12,7 +12,7 @@ function* navigateToTransfers() {
 
 function* watchCreateSuccess() {
   yield takeEvery(
-    createActionTypes.success(sempoObjects.masterWallet.name),
+    createActionTypes.success(stengoObjects.masterWallet.name),
     navigateToTransfers
   );
 }

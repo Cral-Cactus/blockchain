@@ -28,7 +28,7 @@ export default store;
 // Setup sentry
 Sentry.init({
   dsn: window.SENTRY_REACT_DSN,
-  release: "sempo-blockchain-react@" + version
+  release: "stengo-blockchain-react@" + version
 });
 
 // Pusher Options

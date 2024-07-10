@@ -3,7 +3,7 @@ import { takeEvery, all } from "redux-saga/effects";
 import { browserHistory } from "../createStore";
 
 import { createActionTypes } from "../genericState/actions";
-import { sempoObjects } from "../reducers/rootReducer";
+import { stengoObjects } from "../reducers/rootReducer";
 
 interface SuccessAction {
   type: string;
@@ -16,7 +16,7 @@ function* navigateToBulkDetails({ id }: SuccessAction) {
 
 function* watchCreateSuccess() {
   yield takeEvery(
-    createActionTypes.success(sempoObjects.bulkTransfers.name),
+    createActionTypes.success(stengoObjects.bulkTransfers.name),
     navigateToBulkDetails
   );
 }
