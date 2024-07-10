@@ -115,17 +115,6 @@ export default function KoboCredentials() {
             Allow User Updates
           </Checkbox>
           <br />
-
-          <Checkbox
-            id="return_raw_on_error"
-            name="return_raw_on_error"
-            checked={return_raw_on_error}
-            onClick={setCheckbox}
-            aria-label="Send Error Data"
-          >
-            Send Error Data
-          </Checkbox>
-          <br />
         </Card>
       </div>
     );
