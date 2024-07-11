@@ -127,34 +127,3 @@ import {
   export type EditTransferAccountAction = ActionsUnion<
     typeof EditTransferAccountAction
   >;
-  
-  export const loadTransferAccountHistoryRequest = (
-    payload: LoadTransferAccountListPayload
-  ) =>
-    createAction(
-      LoadTransferAccountHistoryActionTypes.LOAD_TRANSFER_ACCOUNT_HISTORY_REQUEST,
-      payload
-    );
-  
-  export const loadTransferAccountHistorySuccess = (
-    result: TransferAccountLoadHistoryApiResult
-  ) =>
-    createAction(
-      LoadTransferAccountHistoryActionTypes.LOAD_TRANSFER_ACCOUNT_HISTORY_SUCCESS,
-      result
-    );
-  
-  export const loadTransferAccountHistoryFailure = (error: string) =>
-    createAction(
-      LoadTransferAccountHistoryActionTypes.LOAD_TRANSFER_ACCOUNT_HISTORY_FAILURE,
-      error
-    );
-  
-  export const LoadTransferAccountHistoryAction = {
-    loadTransferAccountHistoryRequest,
-    loadTransferAccountHistorySuccess,
-    loadTransferAccountHistoryFailure
-  };
-  export type LoadTransferAccountHistoryAction = ActionsUnion<
-    typeof LoadTransferAccountHistoryAction
-  >;
