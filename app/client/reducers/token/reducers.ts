@@ -38,9 +38,6 @@ const loadStatus = (state = initialState, action: LoadTokenAction) => {
     case LoadTokenActionTypes.LOAD_TOKENS_SUCCESS:
       return { ...state, isRequesting: false, success: true };
 
-    case LoadTokenActionTypes.LOAD_TOKENS_FAILURE:
-      return { ...state, isRequesting: false, error: action.error };
-
     default:
       return state;
   }
@@ -56,14 +53,6 @@ const createStatus = (state = initialState, action: CreateTokenAction) => {
 
     case CreateTokenActionTypes.CREATE_TOKEN_SUCCESS:
       return { ...state, isRequesting: false, success: true };
-
-    case CreateTokenActionTypes.CREATE_TOKEN_FAILURE:
-      return {
-        ...state,
-        isRequesting: false,
-        success: false,
-        error: action.error
-      };
 
     default:
       return state;
