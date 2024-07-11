@@ -124,19 +124,19 @@ import {
    *   //  And so on
    * }
    *
-   * interface SempoObjects extends RegistrationMapping {
+   * interface stengoObjects extends RegistrationMapping {
    *   UserExample: Registration<CreateUserBody, ModifyUserBody>;
    * }
    *
-   * export const sempoObjects: SempoObjects = {
+   * export const stengoObjects: stengoObjects = {
    *   UserExample: {
    *     name: "UserExample",
    *     endpoint: "user",
    *     schema: userSchema
    *   }
    *
-   * let baseReducers = createReducers(sempoObjects);
-   * let sagalist = createSagas(sempoObjects);
+   * let baseReducers = createReducers(stengoObjects);
+   * let sagalist = createSagas(stengoObjects);
    *
    * const appReducer = combineReducers({
    *  ...baseReducers
@@ -151,7 +151,7 @@ import {
    * Then for dispatch in component:
    * const mapDispatchToProps = (dispatch: any): DispatchProps => {
    *   return {
-   *     loadUsers: () => dispatch(apiActions.load(sempoObjects.UserExample))
+   *     loadUsers: () => dispatch(apiActions.load(stengoObjects.UserExample))
    *   }
    * }
    */

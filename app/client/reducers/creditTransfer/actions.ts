@@ -64,12 +64,6 @@ export const updateCreditTransferListRequest = (
 export const loadCreditTransferSuccess = () =>
   createAction(LoadCreditTransferActionTypes.LOAD_CREDIT_TRANSFER_LIST_SUCCESS);
 
-export const loadCreditTransferFailure = (error: string) =>
-  createAction(
-    LoadCreditTransferActionTypes.LOAD_CREDIT_TRANSFER_LIST_FAILURE,
-    error
-  );
-
 export const updateCreditTransferPagination = (items: number) =>
   createAction(
     LoadCreditTransferActionTypes.UPDATE_CREDIT_TRANSFER_LIST_PAGINATION,
@@ -79,7 +73,6 @@ export const updateCreditTransferPagination = (items: number) =>
 export const LoadCreditTransferAction = {
   loadCreditTransferRequest,
   loadCreditTransferSuccess,
-  loadCreditTransferFailure,
   updateCreditTransferPagination,
   updateCreditTransferListRequest
 };

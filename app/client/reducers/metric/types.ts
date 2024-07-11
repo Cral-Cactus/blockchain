@@ -24,14 +24,8 @@ export interface LoadMetricsPayload {
   query: object;
 }
 
-export interface DailyVolume {
-  date: string;
-  volume: number;
-}
-
 export interface Metrics {
   filter_active: false;
-  last_day_volume: DailyVolume;
   master_wallet_balance: number;
   total_distributed: number;
   total_withdrawn: number;
