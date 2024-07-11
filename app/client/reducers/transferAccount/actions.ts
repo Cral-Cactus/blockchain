@@ -52,20 +52,12 @@ import {
       TransferAccountActionTypes.UPDATE_TRANSFER_ACCOUNTS,
       transfer_accounts
     );
-  
-  export const updateTransferAccountsCreditTransfers = (
-    credit_transfer_list: CreditTransfer[]
-  ) =>
-    createAction(
-      TransferAccountActionTypes.UPDATE_TRANSFER_ACCOUNTS_CREDIT_TRANSFERS,
-      credit_transfer_list
-    );
+
   
   export const TransferAccountAction = {
     updateTransferAccountIdList,
     deepUpdateTransferAccounts,
     updateTransferAccounts,
-    updateTransferAccountsCreditTransfers,
     updateTransferAccountPagination
   };
   

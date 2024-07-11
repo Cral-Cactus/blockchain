@@ -79,11 +79,6 @@ export interface LoadTransferAccountListPayload {
   path?: number;
 }
 
-export interface LoadTransferAccountHistoryPayload {
-  query?: {};
-  path?: number;
-}
-
 export interface EditTransferAccountPayload {
   body: {
     params?: string;
