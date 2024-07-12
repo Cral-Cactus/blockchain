@@ -38,13 +38,6 @@ class BlockchainAddress(OneOrgBase, ModelBase):
 
         return cipher_suite.decrypt(self.encoded_private_key.encode('utf-8')).decode('utf-8')
 
-    def encrypt_private_key(self, unencoded_private_key):
-
-        fernet_encryption_key = base64.b64encode(keccak(text=current_app.config['SECRET_KEY']))
-        cipher_suite = Fernet(fernet_encryption_key)
-
-        return cipher_suite.encrypt(unencoded_private_key.encode('utf-8')).decode('utf-8')
-
     def calculate_address(self, private_key):
         self.address = hex_private_key_to_address(private_key)
 
