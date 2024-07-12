@@ -8,16 +8,6 @@ import {
   EditBankAccountPayload
 } from "../reducers/businessVerification/types";
 
-export const loadBusinessVerificationAPI = ({
-  query
-}: LoadBusinessProfilePayload) =>
-  apiClient({ url: "/kyc_application/", method: "GET", query: query });
-
-export const createBusinessVerificationAPI = ({
-  body
-}: CreateBusinessProfilePayload) =>
-  apiClient({ url: "/kyc_application/", method: "POST", body: body });
-
 export const editBusinessVerificationAPI = ({
   body,
   path
