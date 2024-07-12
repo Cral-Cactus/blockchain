@@ -25,9 +25,6 @@ export const createWyreTransferRequest = (payload: any) =>
 export const createWyreTransferSuccess = () =>
   createAction(WyreActionTypes.CREATE_WYRE_TRANSFER_SUCCESS);
 
-export const createWyreTransferFailure = (error: any) =>
-  createAction(WyreActionTypes.CREATE_WYRE_TRANSFER_FAILURE, { error });
-
 export const updateWyreState = (payload: WyreState) =>
   createAction(WyreActionTypes.UPDATE_WYRE_STATE, payload);
 
@@ -40,7 +37,6 @@ export const WyreAction = {
   loadWyreAccountFailure,
   createWyreTransferRequest,
   createWyreTransferSuccess,
-  createWyreTransferFailure,
   updateWyreState
 };
 

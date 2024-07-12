@@ -45,12 +45,12 @@ import {
 
 import { CreateMasterWalletWithdrawal } from "./masterWallet/types";
 
-interface SempoObjects extends RegistrationMapping {
+interface stengoObjects extends RegistrationMapping {
   bulkTransfers: Registration<CreateBulkTransferBody, ModifyBulkTransferBody>;
   masterWallet: Registration<CreateMasterWalletWithdrawal>;
 }
 
-export const sempoObjects: SempoObjects = {
+export const stengoObjects: stengoObjects = {
   bulkTransfers: {
     name: "bulkTransfers",
     endpoint: "disbursement",
@@ -63,8 +63,8 @@ export const sempoObjects: SempoObjects = {
   },
 };
 
-let baseReducers = createReducers(sempoObjects);
-let sagalist = createSagas(sempoObjects);
+let baseReducers = createReducers(stengoObjects);
+let sagalist = createSagas(stengoObjects);
 
 export function* generatedSagas() {
   yield all(sagalist);
