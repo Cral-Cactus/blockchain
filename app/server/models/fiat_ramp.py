@@ -28,7 +28,6 @@ class FiatRamp(ModelBase):
 
     _payment_method             = db.Column(db.String)
     payment_amount              = db.Column(db.Integer, default=0)
-    payment_reference           = db.Column(db.String)
     payment_status              = db.Column(db.Enum(FiatRampStatusEnum), default=FiatRampStatusEnum.PENDING)
 
     credit_transfer_id          = db.Column(db.Integer, db.ForeignKey(CreditTransfer.id))
@@ -57,11 +56,3 @@ class FiatRamp(ModelBase):
 
         if message:
             self.payment_metadata['message'] = message
-
-    def __init__(self, **kwargs):
-        super(FiatRamp, self).__init__(**kwargs)
-
-        def random_string(length):
-            return ''.join(random.choices(string.ascii_letters, k=length))
-
-        self.payment_reference = random_string(5) + '-' + random_string(5)
