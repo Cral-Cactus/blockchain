@@ -69,11 +69,7 @@ class Disbursement(ModelBase, OneOrgBase):
     @hybrid_property
     def total_disbursement_amount(self):
         return self.recipient_count * self.disbursement_amount 
-
-    @hybrid_property
-    def disbursement_amount(self):
-        return (self._disbursement_amount_wei or 0) / int(1e16)
-
+        
     @disbursement_amount.setter
     def disbursement_amount(self, val):
         self._disbursement_amount_wei = val * int(1e16)
@@ -98,7 +94,7 @@ class Disbursement(ModelBase, OneOrgBase):
             self.approvers.append(g.user)
         
     def check_if_approved(self):
-        if AccessControl.has_sufficient_tier(g.user.roles, 'ADMIN', 'sempoadmin'):
+        if AccessControl.has_sufficient_tier(g.user.roles, 'ADMIN', 'stengoadmin'):
             return True
         if current_app.config['REQUIRE_MULTIPLE_APPROVALS']:
             # It always has to be approved by at least two people
