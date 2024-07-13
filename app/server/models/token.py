@@ -73,21 +73,6 @@ class Token(ModelBase):
             return decimals_from_contract_definition
         raise Exception("Decimals not defined in either database or contract")
 
-
-    @hybrid_property
-    def decimals(self):
-        return self.get_decimals()
-
-    @decimals.setter
-    def decimals(self, value):
-        self._decimals = value
-
-    def token_amount_to_system(self, token_amount, queue='high-priority'):
-        return int(token_amount) / 10**self.get_decimals(queue) * 100
-
-    def system_amount_to_token(self, system_amount, queue='high-priority'):
-        return int(decimal.Decimal(system_amount/100) * 10**self.get_decimals(queue))
-
     def __init__(self, chain='ETHEREUM', **kwargs):
         self.chain = chain
         super(Token, self).__init__(**kwargs)
