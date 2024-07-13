@@ -280,15 +280,6 @@ class Exchange(BlockchainTaskableBase):
 
         return exchange_contract
 
-    def _get_conversion_function(self, exchange_contract, from_token, to_token):
-        return partial(
-            bt.get_conversion_amount,
-            exchange_contract.blockchain_address,
-            from_token,
-            to_token,
-            exchange_contract.reserve_token
-        )
-
     def _estimate_from_amount(self, from_token, to_token, to_desired_amount):
         max_error = 3e-15
 
