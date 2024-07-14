@@ -36,24 +36,6 @@ def call_contract_function(kwargs, args):
         result = function_results['default']
     return FakeCeleryAsyncResult(result=result)
 
-def transact_with_contract_function(kwargs, args):
-    return FakeCeleryAsyncResult()
-
-def get_task(kwargs, args):
-    return FakeCeleryAsyncResult()
-
-def retry_task(kwargs, args):
-    return FakeCeleryAsyncResult()
-
-def retry_failed(kwargs, args):
-    return FakeCeleryAsyncResult(result={
-            'failed_count': 10,
-            'pending_count': 2
-        })
-
-def create_new_blockchain_wallet(kwargs, args):
-    return FakeCeleryAsyncResult(result = keys.PrivateKey(os.urandom(32)).public_key.to_checksum_address())
-
 def deploy_exchange_network(kwargs, args):
     return FakeCeleryAsyncResult(result = keys.PrivateKey(os.urandom(32)).public_key.to_checksum_address())
 
