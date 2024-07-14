@@ -10,7 +10,7 @@ class LoadFileException(Exception):
     pass
 
 def get_bucket_name():
-    return 'sempoctp-' + str(current_app.config['DEPLOYMENT_NAME'].lower())
+    return 'stengoctp-' + str(current_app.config['DEPLOYMENT_NAME'].lower())
 
 def upload_local_file_to_s3(local_file_path, filename):
     # generate bucket name unique to this deployment

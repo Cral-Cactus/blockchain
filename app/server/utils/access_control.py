@@ -41,34 +41,6 @@ class AccessControl(object):
             return AccessControl._get_tier_from_role_list(held_roles, required_role) == required_tier
 
     @staticmethod
-    def has_sufficient_tier(held_roles: dict, required_role: str, required_tier: str) -> bool:
-
-        if required_role not in ACCESS_ROLES:
-            raise RoleNotFoundException("Role '{}' not valid".format(required_role))
-
-        if required_role in held_roles:
-            held_tier = held_roles[required_role]
-            ranked_tiers = ACCESS_ROLES[required_role]
-
-            if required_tier == 'any':
-                return True
-
-            if required_tier not in ranked_tiers:
-                raise TierNotFoundException("Required tier {} not recognised for role {}"
-                                            .format(required_tier, required_role))
-
-            has_sufficient = AccessControl._held_tier_meets_required_tier(
-                held_tier,
-                required_tier,
-                ranked_tiers
-            )
-
-            if has_sufficient:
-                return True
-
-        return False
-
-    @staticmethod
     def has_any_tier(held_roles: dict, role: str):
         return AccessControl.has_sufficient_tier(held_roles, role, 'any')
 
