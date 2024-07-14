@@ -106,14 +106,6 @@ def send_reset_email(reset_token, email_address):
     body = template.render(host=current_app.config['APP_HOST'], reset_token=reset_token)
     add_after_request_executor_job(ses_email_handler, [email_address, 'stengo Password Reset', body])
 
-def get_email_template(TEMPLATE_FILE):
-    searchpath = os.path.join(current_app.config['BASEDIR'], "templates")
-
-    templateLoader = jinja2.FileSystemLoader(searchpath=searchpath)
-    templateEnv = jinja2.Environment(loader=templateLoader)
-
-    return templateEnv.get_template(TEMPLATE_FILE)
-
 @standard_executor_job
 def ses_email_handler(recipient, subject, textbody, htmlbody = None):
     sender = "admin@withstengo.com"

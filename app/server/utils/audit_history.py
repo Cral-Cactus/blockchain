@@ -60,20 +60,6 @@ def track_updates(model):
             if nuke_history:
                 break
 
-        # We want to add audit history after flush since adding to the database in
-        # before_update is unsafe behavior
-        @event.listens_for(db.session, "after_flush", once=True)
-        def receive_after_flush(session, context):
-            for audit_history in ah:
-                db.session.add(audit_history)
-            # Deletes history for objects which are being deleted, but keeps the actual record of the deletion
-            if nuke_history:
-                db.session.query(AuditHistory)\
-                    .filter(AuditHistory.foreign_id == target.id)\
-                    .filter(AuditHistory.foreign_table_name == target.__tablename__)\
-                    .filter(AuditHistory.column_name != '_deleted')\
-                    .delete()
-
 # Gets audit history using the row ID and it's associated tablename
 def get_audit_history(id, table_name):
     return db.session.query(AuditHistory)\
