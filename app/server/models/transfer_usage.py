@@ -40,31 +40,5 @@ class TransferUsage(ModelBase):
             raise IconNotSupportedException(f'Icon {icon} not supported or found')
         self._icon = icon
 
-    @hybrid_property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, name):
-        stripped_name = name.strip()
-        exists = db.session.query(TransferUsage.id).filter(
-            func.lower(TransferUsage.name) == func.lower(stripped_name)).scalar() is not None
-        if not exists:
-            self._name = stripped_name
-        else:
-            raise TransferUsageNameDuplicateException(
-                'Transfer usage name {} is duplicate'.format(name))
-
-    @classmethod
-    def find_or_create(cls, raw_name, default=False, **kwargs) -> "TransferUsage":
-        name = raw_name.strip()
-        usage = db.session.query(TransferUsage).filter(
-            func.lower(TransferUsage.name) == func.lower(name)).first()
-        if usage is None:
-            usage = cls(name=name, default=default, **kwargs)
-            db.session.add(usage)
-            db.session.flush()
-        return usage
-
     def __repr__(self):
         return f'<Transfer Usage {self.id}: {self.name}>'
