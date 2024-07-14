@@ -136,32 +136,6 @@ def attempt_to_truthy_values(attribute_dict):
     return dict(
         zip(attribute_dict.keys(), map(_convert_yes_no_string_to_bool, attribute_dict.values())))
 
-
-def strip_weirdspace_characters(attribute_dict):
-
-    return dict(
-        zip(
-            map(_remove_wierdspaces_from_string, attribute_dict.keys()),
-            map(_remove_wierdspaces_from_string, attribute_dict.values())
-        )
-    )
-
-def _return_index_of_slash_or_neg1(string):
-    try:
-        return str(string).index("/")
-    except ValueError:
-        return -1
-
-
-def _convert_yes_no_string_to_bool(test_string):
-    if str(test_string).lower() in ["yes", "true"]:
-        return True
-    elif str(test_string).lower() in ["no", "false"]:
-        return False
-    else:
-        return test_string
-
-
 def _remove_wierdspaces_from_string(maybe_string):
     """
     removes tabs, newlines and returns, but NOT plain old spaces
