@@ -174,23 +174,6 @@ class Metric(object):
         :param filterable_by: used to validate whether the custom filters are valid for this case
         :param stock_filters: the base filters required to get this metric to return what we expect, regardless of what
         futher custom filtering we need to do
-        :param query_caching_combinatory_strategy: how new and old timeseries results will be combined
-        :param aggregated_query_caching_combinatory_strategy: how new and old non-timeseries results will be combined
-        :param bypass_user_filters: ignore any user supplied filter
-        :param query: the base query of the metric. This could be a timeseries query, or one which only returns a single number
-        :param aggregated_query: used only with timeseries metrics, this is the query which defines an aggregated version 
-            of the main query. For example, if the main query returns a timeseries representing number of transfer usages 
-            over time, this query should get a non-timeseries of transfer usages spanning the entire time
-        :param total_query: used only with timeseries metrics, this is a query which should return a single 
-            value-- the total of the figure represenging the metric. For example, if the main query returns a timeseries of 
-            transfer usages over time, this query should represent the summation of all transfer usages
-        :param query_actions: Which post-processing actions are executed against the query after it runs. For more details, see
-            postprocessing_actions.py
-        :param aggregated_query_actions: query_actions for aggregated_query
-        :param total_query_actions: query_actions for total_query
-        :param groupable_attributes: list of attributes this metric is allowed to be grouped by
-        :param value_type: type of metric (count, currency)
-        :param token: Token obj to determine label attributable to the metric (Dollars, Euro, etc...)
         """        
         self.metric_name = metric_name
         self.is_timeseries = is_timeseries
