@@ -48,35 +48,6 @@ class ParticipantStats(metric_group.MetricGroup):
         ))
 
         if group_strategy:
-            active_users_timeseries_query = group_strategy.build_query_group_by_with_join(db.session.query(func.count(func.distinct(CreditTransfer.sender_user_id)).label('volume'),
-                    func.date_trunc(self.timeseries_unit, self.date_filter_attributes[CreditTransfer]).label('date'), group_strategy.group_by_column)\
-                    .group_by(func.date_trunc(self.timeseries_unit, self.date_filter_attributes[CreditTransfer])), CreditTransfer)
-            aggregated_active_users_query = group_strategy.build_query_group_by_with_join(db.session.query(func.count(func.distinct(CreditTransfer.sender_user_id)).label('volume'), group_strategy.group_by_column), CreditTransfer)
-        else:
-            active_users_timeseries_query = db.session.query(func.count(func.distinct(CreditTransfer.sender_user_id)).label('volume'),
-                    func.date_trunc(self.timeseries_unit, self.date_filter_attributes[CreditTransfer]).label('date'))\
-                    .group_by(func.date_trunc(self.timeseries_unit, self.date_filter_attributes[CreditTransfer]))
-            aggregated_active_users_query = None
-        total_active_users_query = db.session.query(func.count(func.distinct(CreditTransfer.sender_user_id)).label('volume'))
-        self.metrics.append(metric.Metric(
-            metric_name='active_users',
-            is_timeseries=True,
-            query=active_users_timeseries_query,
-            aggregated_query=aggregated_active_users_query,
-            total_query=total_active_users_query,
-            object_model=CreditTransfer,
-            #stock_filters=[filters.beneficiary_filters], # NOTE: Do we still want this filter?
-            stock_filters=[],
-            query_caching_combinatory_strategy=metrics_cache.SUM_OBJECTS,
-            aggregated_query_caching_combinatory_strategy=metrics_cache.QUERY_ALL,
-            total_query_caching_combinatory_strategy=metrics_cache.QUERY_ALL,
-            filterable_by=self.filterable_attributes,
-            query_actions=[FORMAT_TIMESERIES],
-            aggregated_query_actions=[FORMAT_AGGREGATE_METRICS],
-            total_query_actions=[GET_FIRST],
-        ))
-
-        if group_strategy:
             total_users_timeseries_query = group_strategy.build_query_group_by_with_join(db.session.query(func.count(User.id).label('volume'),
                     func.date_trunc(self.timeseries_unit, self.date_filter_attributes[User]).label('date'), group_strategy.group_by_column)\
                     .group_by(func.date_trunc(self.timeseries_unit, self.date_filter_attributes[User])), User)
