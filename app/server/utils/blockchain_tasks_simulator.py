@@ -35,13 +35,7 @@ def call_contract_function(kwargs, args):
         print('[WARN] Contract function called without \'function\' argument provided in kwargs.')
         result = function_results['default']
     return FakeCeleryAsyncResult(result=result)
-
-def deploy_exchange_network(kwargs, args):
-    return FakeCeleryAsyncResult(result = keys.PrivateKey(os.urandom(32)).public_key.to_checksum_address())
-
-def deploy_and_fund_reserve_token(kwargs, args):
-    return FakeCeleryAsyncResult(result = keys.PrivateKey(os.urandom(32)).public_key.to_checksum_address())
-
+    
 def deploy_smart_token(kwargs, args):
     return FakeCeleryAsyncResult(result = { 
             'smart_token_address': keys.PrivateKey(os.urandom(32)).public_key.to_checksum_address(),

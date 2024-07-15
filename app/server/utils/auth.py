@@ -344,21 +344,6 @@ def verify_slack_requests(f=None):
     return wrapper
 
 
-def get_user_organisations(user):
-    active_organisation = getattr(g, "active_organisation", None) or user.fallback_active_organisation()
-
-    organisations = dict(
-        active_organisation_id=active_organisation.id,
-        organisations=organisations_schema.dump(user.organisations).data
-    )
-
-    return organisations
-
-
-def get_denominations(currency_symbol=None):
-    return DENOMINATION_DICT.get(currency_symbol, {})
-
-
 def create_user_response_object(user, auth_token, message):
     try:
         if current_app.config['CHAINS'][user.default_organisation.token.chain]['IS_USING_BITCOIN']:

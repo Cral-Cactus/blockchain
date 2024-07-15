@@ -30,23 +30,6 @@ def find_last_period_dates(epoch_datetime, target_datetime, period_type, period_
 
     return prior_period_start, prior_period_end
 
-def diff_day(d1, d2):
-    return (d1 - d2).days
-
-
-def diff_week(d1, d2):
-    days = (d1 - d2).days
-    return math.floor(days/7)
-
-def diff_month(d1, d2):
-
-    months = (d1.year - d2.year) * 12 + d1.month - d2.month
-
-    if d1.day < d2.day:
-        return months - 1
-    else:
-        return months
-
 
 def add_months(date, months):
     months_count = date.month + months
