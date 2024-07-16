@@ -412,3 +412,105 @@ class MinimumSentLimit(AggregateTransferAmountMixin, AggregateLimit):
         )
 
         self.minimum_sent_aggregation_filter = minimum_sent_aggregation_filter
+
+
+class BalanceFractionLimit(AggregateTransferAmountMixin, AggregateLimit):
+    """
+    A limit that where the maximum amount that can be transferred over a set of transfers within a time period must be
+    less than some fraction of the balance of the user at that moment.
+    Has slightly weird behaviour in that the limit can change a lot depending on the balance (that's the point)
+    Eg "Your current balance is 500 FooTokens, you're allowed to withdrawl half in a 7 day period.
+    """
+
+    def available_base(self, transfer: CreditTransfer) -> TransferAmount:
+        return self._total_from_balance(transfer.sender_transfer_account.balance)
+
+    def _total_from_balance(self, balance: int) -> TransferAmount:
+        amount: TransferAmount = int(self.balance_fraction * balance)
+        return amount
+
+    def throw_validation_error(self, transfer: CreditTransfer, available: NumericAvailability):
+        message = 'Account % Limit "{}" reached. {} available'.format(
+            self.name,
+            max([available, 0])
+        )
+        raise TransferBalanceFractionLimitError(
+            transfer_balance_fraction_limit=self.balance_fraction,
+            transfer_amount_avail=available,
+            limit_time_period_days=self.time_period_days,
+            token=transfer.token.name,
+            message=message
+        )
+
+    def __init__(
+            self,
+            name: str,
+            applied_to_transfer_types: AppliedToTypes,
+            application_filter: ApplicationFilter,
+            time_period_days: int,
+            balance_fraction: Decimal,
+            aggregation_filter: AggregationFilter = matching_transfer_type_filter
+
+    ):
+        super().__init__(
+            name,
+            applied_to_transfer_types,
+            application_filter,
+            time_period_days,
+            aggregation_filter
+        )
+
+        self.balance_fraction = balance_fraction
+
+
+class TransferCountLimit(AggregateLimit):
+    """
+    An Aggregate Limit that limits based on the number of transfers made (rather than the amount transferred).
+    If we end up making more variations of this, it may be worth creating a count mixin.
+    """
+
+    def used_aggregator(
+            self,
+            transfer: CreditTransfer,
+            query_constructor: QueryConstructorFunc
+    ) -> NumericAvailability:
+
+        return query_constructor(
+            transfer,
+            db.session.query(func.count(CreditTransfer.id).label('count'))
+        ).execution_options(show_all=True).first().count - 1
+
+    def case_will_use(self, transfer: CreditTransfer) -> int:
+        return 1
+
+    def available_base(self, transfer: CreditTransfer) -> int:
+        return self.transfer_count
+
+    def throw_validation_error(self, transfer: CreditTransfer, available: NumericAvailability):
+        message = 'Account Limit "{}" reached. Allowed {} transaction per {} days' \
+            .format(self.name, self.transfer_count, self.time_period_days)
+        raise TransferCountLimitError(
+            transfer_count_limit=self.transfer_count,
+            limit_time_period_days=self.time_period_days,
+            token=transfer.token.name,
+            message=message
+        )
+
+    def __init__(
+            self,
+            name: str,
+            applied_to_transfer_types: AppliedToTypes,
+            application_filter: ApplicationFilter,
+            time_period_days: int,
+            transfer_count: int,
+            aggregation_filter: AggregationFilter = matching_transfer_type_filter
+    ):
+        super().__init__(
+            name,
+            applied_to_transfer_types,
+            application_filter,
+            time_period_days,
+            aggregation_filter
+        )
+
+        self.transfer_count = transfer_count
