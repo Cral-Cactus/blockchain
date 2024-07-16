@@ -11,8 +11,6 @@ from server.utils.user import default_token
 
 from server.constants import NUMBER_OF_DIRECTORY_LISTING_RESULTS
 
-
-
 def user_directory_listing(user: User) -> str:
     bio = next(filter(lambda x: x.key == 'bio', user.custom_attributes), None)
     if bio is None:
@@ -26,10 +24,6 @@ class DirectoryListingProcessor(object):
         self.recipient = user
         self.selected_business_category = transfer_usage
 
-    def send_sms(self, message_key, **kwargs):
-        # if we use directory listing similarly for other countries later, can generalize country to init
-        send_translated_message(self.recipient, "ussd.stengo.{}".format(message_key), **kwargs)
-        
     # get users to be appended to message for the directory listing matching recipient's search criteria.
     def get_directory_listing_users(self):
         token_id = default_token(self.recipient).id
@@ -76,15 +70,6 @@ class DirectoryListingProcessor(object):
             )
 
         return count_based_users + matching_category_users
-
-    def get_business_category_translation(self):
-        try:
-            if self.recipient.preferred_language and self.selected_business_category.translations:
-                return self.selected_business_category.translations[self.recipient.preferred_language]
-            else:
-                return self.selected_business_category.name
-        except KeyError:
-            return self.selected_business_category.name
 
     def send_directory_listing(self):
         transfer_account = self.recipient.default_transfer_account
