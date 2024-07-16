@@ -5,13 +5,13 @@ from server.utils.transfer_enums import TransferSubTypeEnum
 
 
 # ~~~~~~SIMPLE CHECKS~~~~~~
-def sempo_admin_involved(credit_transfer):
+def stengo_admin_involved(credit_transfer):
     if credit_transfer.recipient_user and AccessControl.has_sufficient_tier(
-            credit_transfer.recipient_user.roles, 'ADMIN', 'sempoadmin'):
+            credit_transfer.recipient_user.roles, 'ADMIN', 'stengoadmin'):
         return True
 
     if credit_transfer.sender_user and AccessControl.has_sufficient_tier(
-            credit_transfer.sender_user.roles, 'ADMIN', 'sempoadmin'):
+            credit_transfer.sender_user.roles, 'ADMIN', 'stengoadmin'):
         return True
 
     return False
@@ -65,8 +65,8 @@ def transfer_is_agent_out_subtype(credit_transfer):
 
 # ~~~~~~COMPOSITE CHECKS~~~~~~
 def base_check(credit_transfer):
-    # Only ever check transfers with a sender user and no sempoadmin (those involving sempoadmins are always allowed)
-    return sender_user_exists(credit_transfer) and not sempo_admin_involved(credit_transfer)
+    # Only ever check transfers with a sender user and no stengoadmin (those involving stengoadmins are always allowed)
+    return sender_user_exists(credit_transfer) and not stengo_admin_involved(credit_transfer)
 
 
 def is_user_and_any_token(credit_transfer):
