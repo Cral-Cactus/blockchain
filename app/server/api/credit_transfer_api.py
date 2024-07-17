@@ -442,38 +442,6 @@ class CreditTransferAPI(MethodView):
         return make_response(jsonify(response_object)), 201
 
 
-class ConfirmWithdrawalAPI(MethodView):
-
-    @requires_auth(allowed_roles={'ADMIN': 'admin'})
-    def post(self):
-
-        post_data = request.get_json()
-
-        withdrawal_id_list = post_data.get('withdrawal_id_list')
-        credit_transfers = []
-
-        for withdrawal_id_string in withdrawal_id_list:
-
-            withdrawal_id = int(withdrawal_id_string)
-
-            withdrawal = CreditTransfer.query.get(withdrawal_id)
-
-            withdrawal.resolve_as_complete_and_trigger_blockchain()
-
-            credit_transfers.append(CreditTransfer.query.get(withdrawal_id_string))
-
-        db.session.flush()
-
-        response_object = {
-            'message': 'Withdrawal Confirmed',
-            'data': {
-                'credit_transfers': credit_transfers_schema.dump(credit_transfers).data,
-            }
-        }
-
-        return make_response(jsonify(response_object)), 201
-
-
 class InternalCreditTransferAPI(MethodView):
     @requires_auth(allowed_basic_auth_types=('internal',))
     def post(self):
