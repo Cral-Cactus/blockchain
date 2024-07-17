@@ -102,35 +102,6 @@ class UssdProcessor:
                 transaction_reason=transaction_reason
             )
 
-        if menu.name == 'exchange_token_confirmation':
-            agent = get_user_by_phone(ussd_session.get_data('agent_phone'), should_raise=True)
-            agent_phone = agent.user_details()
-            token = default_token(user)
-            exchange_amount = ussd_session.get_data('exchange_amount')
-            return i18n_for(
-                user, menu.display_key,
-                agent_phone=agent_phone,
-                token_name=token.symbol,
-                exchange_amount=cents_to_dollars(exchange_amount)
-            )
-
-        # in matching is scary since it might pick up unintentional ones
-        if 'exit' in menu.name or 'help' == menu.name:
-            return i18n_for(
-                user, menu.display_key,
-                support_phone='+254757628885'
-            )
-
-        # in matching is scary since it might pick up unintentional ones
-        if 'pin_authorization' in menu.name or 'current_pin' == menu.name:
-            if user.failed_pin_attempts is not None and user.failed_pin_attempts > 0:
-                return i18n_for(
-                    user, "{}.retry".format(menu.display_key),
-                    remaining_attempts=3 - user.failed_pin_attempts
-                )
-            else:
-                return i18n_for(user, "{}.first".format(menu.display_key))
-
         if menu.name == 'directory_listing' or menu.name == 'send_token_reason':
 
             blank_template = i18n_for(
@@ -206,19 +177,3 @@ class UssdProcessor:
             )
 
         return i18n_for(user, menu.display_key)
-
-    @staticmethod
-    def create_usages_list(usages, user):
-        menu_options = ''
-        for i, usage in enumerate(usages):
-            business_usage_string = None
-            if usage.get('translations') is not None and user.preferred_language is not None:
-                business_usage_string = usage.get('translations').get(
-                    user.preferred_language)
-            if business_usage_string is None:
-                business_usage_string = usage.get('name')
-            message_option = '%d. %s' % (i+1, business_usage_string)
-            if i < len(usages):
-                message_option += '\n'
-            menu_options += message_option
-        return menu_options[:-1]
