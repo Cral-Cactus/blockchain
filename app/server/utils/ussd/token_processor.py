@@ -4,7 +4,7 @@ from typing import Optional, Tuple, Type
 from sqlalchemy.sql import func
 
 from server import db
-from server.sempo_types import TransferAmount
+from server.stengo_types import TransferAmount
 from server.exceptions import (
     NoTransferAllowedLimitError,
     TransferBalanceFractionLimitError,
@@ -41,7 +41,7 @@ class TokenProcessor(object):
     @staticmethod
     def send_sms(user, message_key, **kwargs):
         # if we use token processor similarly for other countries later, can generalize country to init
-        message = i18n_for(user, "ussd.sempo.{}".format(message_key), **kwargs)
+        message = i18n_for(user, "ussd.stengo.{}".format(message_key), **kwargs)
         send_message(user.phone, message)
 
     @staticmethod
@@ -331,50 +331,3 @@ class TokenProcessor(object):
                 "limit": limit,
                 "token": token
             }
-
-        def check_if_ge_limit(token_info):
-            return 'GE Liquid Token' in token_info['limit'].name
-
-        def token_string(limit_type: Type[AggregateLimit], t: dict):
-            if isinstance(t['limit'], limit_type):
-
-                with ephemeral_alchemy_object(
-                        CreditTransfer,
-                        transfer_type=TransferTypeEnum.PAYMENT,
-                        transfer_subtype=TransferSubTypeEnum.AGENT_OUT,
-                        sender_user=user,
-                        recipient_user=user,
-                        token=t['token'],
-                        amount=0
-                ) as dummy_transfer:
-
-                    allowed_amount = f"{rounded_dollars(str(t['limit'].available_base(dummy_transfer)))}"
-                    rounded_rate = round_to_sig_figs(t['exchange_rate'], 3)
-                    return (
-                        f"{allowed_amount} {t['name']} (1 {t['name']} = {rounded_rate} {reserve_token.symbol})"
-                    )
-            else:
-                return ""
-
-            # transfer accounts could be created for other currencies exchanged with, but we don't want to list those
-
-        transfer_accounts = filter(lambda x: x.is_ghost is not True, user.transfer_accounts)
-        token_info_list = list(map(get_token_info, transfer_accounts))
-
-        token_balances_dollars = "\n".join(map(lambda x: f"{x['name']} {rounded_dollars(x['balance'])}",
-                                               token_info_list))
-
-        reserve_token = user.get_reserve_token()
-        ge_tokens = list(filter(check_if_ge_limit, token_info_list))
-        is_ge = len(ge_tokens) > 0
-        if is_ge:
-            exchange_list = list(map(lambda i: token_string(BalanceFractionLimit, i), ge_tokens))
-        else:
-            exchange_list = list(map(lambda i: token_string(TotalAmountLimit, i), token_info_list))
-
-        if len(exchange_list) == 0:
-            token_exchanges = None
-        else:
-            token_exchanges = "\n".join(exchange_list)
-
-        return token_balances_dollars, token_exchanges
