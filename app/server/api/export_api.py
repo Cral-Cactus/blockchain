@@ -289,38 +289,6 @@ class MeExportAPI(MethodView):
             start_date = datetime.utcnow()
             end_date = start_date - timedelta(weeks=1)
 
-        if start_date and end_date is not None:
-            # filter by date_range & transfer_account.id
-            credit_transfer_list = CreditTransfer.query.filter(
-                and_(CreditTransfer.created.between(start_date, end_date), (
-                or_(CreditTransfer.recipient_transfer_account_id == transfer_account.id,
-                    CreditTransfer.sender_transfer_account_id == transfer_account.id))))\
-                    .enable_eagerloads(False)
-        else:
-            # default to all credit transfers of transfer_account.id
-            credit_transfer_list = CreditTransfer.query.filter(
-                or_(CreditTransfer.recipient_transfer_account_id == transfer_account.id,
-                    CreditTransfer.sender_transfer_account_id == transfer_account.id))\
-                    .enable_eagerloads(False)
-        credit_transfer_list = partition_query(credit_transfer_list)
-
-        # loop over all credit transfers, create cells
-        if credit_transfer_list is not None:
-            for index, credit_transfer in enumerate(credit_transfer_list):
-                for jindix, column in enumerate(credit_transfer_columns):
-                    if column['query_type'] == 'db':
-                        cell_contents = "{0}".format(getattr(credit_transfer, column['query']))
-                    elif column['query_type'] == 'enum':
-                        enum = getattr(credit_transfer, column['query'])
-                        cell_contents = "{0}".format(enum and enum.value)
-                    elif column['query'] == 'transfer_amount':
-                        cell_contents = "{0}".format(getattr(credit_transfer, column['query']) / 100)
-                    elif  column['query'] == 'transfer_usages':
-                        cell_contents = ', '.join([usage.name for usage in credit_transfer.transfer_usages])
-                    else:
-                        cell_contents = ""
-                    ws[jindix + 1][index + 2] = cell_contents
-
         if credit_transfer_list is not None:
             file_url = export_workbook_via_s3(wb, workbook_filename, email)
 

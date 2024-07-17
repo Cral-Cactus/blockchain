@@ -473,13 +473,13 @@ class InternalCreditTransferAPI(MethodView):
             maybe_recipient_transfer_account = TransferAccount.query.execution_options(show_all=True).filter_by(blockchain_address=recipient_blockchain_address).first()
             maybe_recipient_user = maybe_recipient_transfer_account.users[0] if maybe_recipient_transfer_account and len(maybe_recipient_transfer_account.users) == 1 else None
 
-            # Case 2: Two non-sempo users making a trade on our token. We don't have to track this!
+            # Case 2: Two non-stengo users making a trade on our token. We don't have to track this!
             if not maybe_recipient_transfer_account and not maybe_sender_transfer_account:
                 response_object = {
                     'message': 'No existing users involved in this transfer',
                     'data': {}
                 }
-            # Case 3: Two non-Sempo users, at least one of whom has interacted with Sempo users before transacting with one another
+            # Case 3: Two non-stengo users, at least one of whom has interacted with stengo users before transacting with one another
             # We don't have to track this either!
             elif (
                     # The recipient is either an external transfer account we've seen before
@@ -502,7 +502,7 @@ class InternalCreditTransferAPI(MethodView):
                         'message': 'Only external users involved in this transfer',
                         'data': {}
                     }
-            # Case 4: One or both of the transfer accounts are affiliated with Sempo accounts.
+            # Case 4: One or both of the transfer accounts are affiliated with stengo accounts.
             # This is the only case where we want to generate a new CreditTransfer object.
             else:
                 send_transfer_account = create_transfer_account_if_required(sender_blockchain_address, token, TransferAccountType.EXTERNAL)
