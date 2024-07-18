@@ -125,39 +125,6 @@ class WyreExchangeAPI(MethodView):
         return make_response(jsonify(response_object)), 200
 
 
-class WyreWebhookAPI(MethodView):
-    def post(self):
-        # wyre webhook callback API
-        post_data = request.get_json()
-
-        subscription_id = post_data.get('subscriptionId')
-        trigger = post_data.get('trigger')
-
-        if subscription_id is None or trigger is None:
-            return make_response(jsonify({'message': 'must provide subscription_id and trigger'})), 400
-
-        transfer = None
-        if trigger:
-            # get wyre transfer details
-            try:
-                transfer = get_transfer(transfer_id=trigger)
-
-            except WyreError as e:
-                response_object = {
-                    'message': str(e),
-                }
-                return make_response(jsonify(response_object)), 400
-
-        if transfer:
-            # email status updates for FAILED or COMPLETED Transfers.
-            transfer_statuses = transfer['statusHistories']
-            latest_status = [transfer for transfer in transfer_statuses if (transfer['state'] == 'FAILED' or transfer['state'] == 'COMPLETED')]
-            if len(latest_status) > 0:
-                send_transfer_update_email(g.user.email, transfer, latest_status[0])
-
-        return make_response(jsonify({'message': 'Email sent!'})), 200
-
-
 wyre_blueprint.add_url_rule(
     '/wyre_account/',
     view_func=WyreAccountAPI.as_view('wyre_account_view'),
