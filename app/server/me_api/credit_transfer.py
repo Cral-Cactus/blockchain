@@ -346,32 +346,6 @@ class MeCreditTransferAPI(MethodView):
                 }
                 return make_response(jsonify(response_object)), 400
 
-
-        except InsufficientBalanceError as e:
-            db.session.commit()
-
-            response_object = {
-                'message': "Insufficient balance",
-                'feedback': True,
-            }
-            return make_response(jsonify(response_object)), 400
-
-        except TransferAmountLimitError as e:
-            db.session.commit()
-            response_object = {
-                'message': "Account limit reached",
-                'feedback': True,
-            }
-            return make_response(jsonify(response_object)), 400
-
-        except Exception as e:
-            db.session.commit()
-            response_object = {
-                'message': "Unknown Error",
-                'feedback': True,
-            }
-            return make_response(jsonify(response_object)), 400
-
         if created:
             try:
                 transfer.created = datetime.datetime.strptime(created, "%Y-%m-%dT%H:%M:%S.%fz")
