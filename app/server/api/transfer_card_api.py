@@ -141,51 +141,7 @@ class TransferCardAPI(MethodView):
             }
             return make_response(jsonify(response_object)), 404
 
-        if disable:
-            if transfer_card.is_disabled:
-                response_object = {
-                    'message': 'Card card already disabled',
-                }
-                return make_response(jsonify(response_object)), 400
-
-            transfer_card.disable()
-
-        if amount_offset:
-
-            if not transfer_card.transfer_account:
-                response_object = {
-                    'message': f'Card {transfer_card.id} must be bound to at transfer account to modify offset',
-                }
-                return make_response(jsonify(response_object)), 400
-
-            transfer_card.amount_offset = amount_offset
-
-            db.session.commit()
-
         response_object = {
             'message': 'Updated transfer card ',
         }
         return make_response(jsonify(response_object)), 200
-
-
-
-transfer_cards_blueprint.add_url_rule(
-    '/transfer_cards/',
-    view_func=TransferCardAPI.as_view('transfer_card_view'),
-    methods=['GET', 'POST'],
-    defaults={'nfc_serial_number': None, 'public_serial_number': None}
-)
-
-transfer_cards_blueprint.add_url_rule(
-    '/transfer_cards/nfc_serial_number/<nfc_serial_number>',
-    view_func=TransferCardAPI.as_view('nfc_sn_referenced_transfer_card_view'),
-    methods=['GET', 'PUT'],
-    defaults={'public_serial_number': None}
-)
-
-transfer_cards_blueprint.add_url_rule(
-    '/transfer_cards/public_serial_number/<public_serial_number>/',
-    view_func=TransferCardAPI.as_view('public_sn_referenced_transfer_card_view'),
-    methods=['PUT'],
-    defaults={'nfc_serial_number': None}
-)
