@@ -470,46 +470,6 @@ def test_client():
 
     ctx.pop()
 
-
-@pytest.fixture(scope='module')
-def init_database(test_client):
-    # Create the database and the database table
-
-    with current_app.app_context():
-        db.create_all()
-
-    yield db  # this is where the testing happens!
-
-    with current_app.app_context():
-        try:
-            db.session.execute('DROP MATERIALIZED VIEW IF EXISTS search_view;')
-            db.session.commit()
-        except:
-            pass
-        db.session.remove()  # DO NOT DELETE THIS LINE. We need to close sessions before dropping tables.
-        db.drop_all()
-
-
-@pytest.fixture(autouse=True)
-def mock_sms_apis(mocker):
-    # Always patch out all sms sending apis because we don't want to spam messages with our tests!!
-    messages = []
-    def mock_sms_api(phone, message):
-        messages.append({'phone': phone, 'message': message})
-
-    mocker.patch('server.utils.phone.send_message', mock_sms_api)
-    mocker.patch('server.utils.phone._send_twilio_message.submit', mock_sms_api)
-    mocker.patch('server.utils.phone._send_messagebird_message.submit', mock_sms_api)
-    mocker.patch('server.utils.phone._send_at_message.submit', mock_sms_api)
-
-    return messages
-
-@pytest.fixture(autouse=True)
-def mock_pusher(mocker):
-    mocker.patch('server.pusher_client.trigger')
-    mocker.patch('server.pusher_client.authenticate')
-    mocker.patch('server.pusher_client.trigger_batch')
-
 @pytest.fixture(autouse=True)
 def mock_osm_search(mocker):
     def mock_osm_api(query_string):
