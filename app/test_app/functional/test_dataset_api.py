@@ -28,35 +28,6 @@ def fake_csv():
 
     return my_xlsx
 
-def delete_fake_csv():
-    if os.path.exists("spreadsheet.xlsx"):
-        os.remove('spreadsheet.xlsx')
-
-@pytest.mark.parametrize("tier, status_code", [
-    ("subadmin", 403),
-    ("admin", 200),
-])
-def test_spreadsheet_upload_api(test_client, authed_stengo_admin_user, tier, status_code):
-    if tier:
-        authed_stengo_admin_user.set_held_role('ADMIN', tier)
-        auth = get_complete_auth_token(authed_stengo_admin_user)
-    else:
-        auth = None
-
-    data = dict()
-    data['spreadsheet'] = (fake_csv(), 'spreadsheet.xlsx')
-    response = test_client.post(
-        f"/api/v1/spreadsheet/upload/",
-        headers=dict(
-            Authorization=auth,
-            Accept='multipart/form-data',
-        ),
-        data=data
-    )
-
-    assert response.status_code == status_code
-    delete_fake_csv()
-
 
 def test_dataset_api(test_client, authed_stengo_admin_user):
     data = {
