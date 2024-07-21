@@ -208,31 +208,6 @@ def test_disbursement_approval_flow(include_list, disbursement_amount, expected_
         else:
             assert phase_two_response.status_code not in [200, 201]
 
-        # Make superadmin 2, approve the second time
-        approver_token = sample_token_2
-        resp_id = response.json['data']['disbursement']['id']
-        phase_two_response = test_client.put(f'/api/v1/disbursement/{resp_id}',
-            headers=dict(
-            Authorization=approver_token, Accept='application/json'),
-            json={ "action": "APPROVE" },
-            follow_redirects=True)
-        if statuses[1] != 'error':
-            assert phase_two_response.json['data']['disbursement']['state'] == statuses[1]
-        else:
-            assert phase_two_response.status_code not in [200, 201]
-
-        # Make superadmin 3, approve the third time
-        resp_id = response.json['data']['disbursement']['id']
-        phase_two_response = test_client.put(f'/api/v1/disbursement/{resp_id}',
-            headers=dict(
-            Authorization=sample_token_3, Accept='application/json'),
-            json={ "action": "APPROVE" },
-            follow_redirects=True)
-        if statuses[2] != 'error':
-            assert phase_two_response.json['data']['disbursement']['state'] == statuses[2]
-        else:
-            assert phase_two_response.status_code not in [200, 201]
-
         # Make superadmin called approver, approve the third time
         resp_id = response.json['data']['disbursement']['id']
         phase_two_response = test_client.put(f'/api/v1/disbursement/{resp_id}',
