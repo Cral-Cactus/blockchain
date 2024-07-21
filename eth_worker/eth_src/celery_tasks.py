@@ -220,28 +220,6 @@ def _handle_error(request, exc, traceback, transaction_id):
     return supervisor.handle_error(request, exc, traceback, transaction_id)
 
 
-@app.task(name=eth_endpoint('_check_transaction_response'), base=SqlAlchemyTask, bind=True, max_retries=chain_config['CHECK_TRANSACTION_RETRIES'], soft_time_limit=300)
-def _check_transaction_response(self, transaction_id):
-    return supervisor.check_transaction_response(self, transaction_id)
-
-
-@app.task(name=eth_endpoint('attempt_transaction'), **base_task_config)
-def attempt_transaction(self, task_uuid):
-    return supervisor.attempt_transaction(task_uuid)
-
-
-@app.task(name=eth_endpoint('_process_send_eth_transaction'), **processor_task_config)
-def _process_send_eth_transaction(self, transaction_id, recipient_address, amount, task_id=None):
-    return processor.process_send_eth_transaction(transaction_id, recipient_address, amount, task_id)
-
-
-@app.task(name=eth_endpoint('_process_function_transaction'), **processor_task_config)
-def _process_function_transaction(self, transaction_id, contract_address, abi_type,
-                                  function, args=None, kwargs=None,  gas_limit=None, task_id=None):
-    return processor.process_function_transaction(transaction_id, contract_address, abi_type,
-                                                  function, args, kwargs, gas_limit, task_id)
-
-
 @app.task(name=eth_endpoint('_process_deploy_contract_transaction'), **processor_task_config)
 def _process_deploy_contract_transaction(self, transaction_id, contract_name,
                                          args=None, kwargs=None,  gas_limit=None, task_id=None):
