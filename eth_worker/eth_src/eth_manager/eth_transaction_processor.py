@@ -343,52 +343,6 @@ class SigGenerators(object):
             )
         )
 
-    def process_function_transaction(
-            self,
-            transaction_id,
-            contract_address,
-            abi_type,
-            fn,
-            args,
-            kwargs,
-            gas_limit,
-            task_id
-    ):
-        return signature(
-            eth_endpoint('_process_function_transaction'),
-            args=(
-                transaction_id,
-                contract_address,
-                abi_type,
-                fn,
-                args,
-                kwargs,
-                gas_limit,
-                task_id
-            )
-        )
-
-    def process_deploy_contract_transaction(
-            self,
-            transaction_id,
-            contract_name,
-            args,
-            kwargs,
-            gas_limit,
-            task_id
-    ):
-        return signature(
-            eth_endpoint('_process_deploy_contract_transaction'),
-            args=(
-                transaction_id,
-                contract_name,
-                args,
-                kwargs,
-                gas_limit,
-                task_id
-            )
-        )
-
     def call_contract_function(self, contract_address, contract_type, func, args=None):
         return signature(
             eth_endpoint('call_contract_function'),
