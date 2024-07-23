@@ -220,53 +220,6 @@ class DisbursementAPI(MethodView):
             if disbursement.state in ['APPROVED', 'REJECTED']:
                 return { 'message': f'Disbursement with ID \'{disbursement_id}\' has already been set to {disbursement.state.lower()}!'}, 400
 
-            if action == 'APPROVE':
-                # Checks if this can be afforded
-                if disbursement.transfer_type == 'DISBURSEMENT':
-                    org_balance = g.active_organisation.queried_org_level_transfer_account.balance
-                    disbursement_amount = disbursement.total_disbursement_amount
-                    if disbursement_amount > org_balance:
-                        message = "Sender {} has insufficient balance. Has {}, needs {}.".format(
-                            g.active_organisation.queried_org_level_transfer_account,
-                            str(round(org_balance / 100, 2)),
-                            str(round(disbursement_amount / 100, 2))
-                        )
-                        response_object = {'message': str(message)}
-                        return make_response(jsonify(response_object)), 400
-                disbursement.approve()
-                db.session.commit()
-                auto_resolve = False
-                if current_app.config['REQUIRE_MULTIPLE_APPROVALS'] or AccessControl.has_sufficient_tier(g.user.roles, 'ADMIN', 'superadmin'):
-                    auto_resolve = True
-                # A disbursement isn't necessarily approved after approve() is called, since we can require multiple approvers
-                task_uuid = None
-                if disbursement.state == 'APPROVED':
-                    task_uuid = add_after_request_checkable_executor_job(
-                        make_transfers, kwargs={'disbursement_id': disbursement.id, 'auto_resolve': auto_resolve}
-                    )
-
-                data = disbursement_schema.dump(disbursement).data
-                return {
-                    'status': 'success',
-                    'data': {
-                        'disbursement': data
-                    },
-                    'task_uuid': task_uuid
-                }, 200
-
-            if action == 'REJECT':
-                disbursement.reject()
-                db.session.commit()
-
-                data = disbursement_schema.dump(disbursement).data
-
-                return {
-                    'status': 'success',
-                    'data': {
-                       'disbursement': data
-                    },
-                }, 200
-
 disbursement_blueprint.add_url_rule(
     '/disbursement/',
     view_func=MakeDisbursementAPI.as_view('make_disbursement_view'),
