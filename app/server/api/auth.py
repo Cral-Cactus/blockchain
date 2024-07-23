@@ -455,41 +455,225 @@ class LogoutAPI(MethodView):
             return make_response(jsonify(response_object)), 403
 
 
-class RequestPasswordResetEmailAPI(MethodView):
+class ResetPasswordAPI(MethodView):
     """
-    Password Reset Email Resource
+    Password Reset Resource
     """
 
     def post(self):
+
         # get the post data
         post_data = request.get_json()
+        old_password = post_data.get('old_password')
+        new_password = post_data.get('new_password')
+        new_pin = post_data.get('new_pin')
+        phone = proccess_phone_number(phone_number=post_data.get('phone'), region=post_data.get('region'))
+        one_time_code = post_data.get('one_time_code')
 
-        email = post_data.get('email', '')
-        email = email.lower() if email else ''
-        if not email:
+        auth_header = request.headers.get('Authorization')
+
+        # Check authorisation using a one time code
+        if phone and one_time_code:
+            card = phone[-6:]
+            user = (User.query.filter_by(phone=phone).execution_options(show_all=True).first() or
+                    User.query.filter_by(public_serial_number=card).execution_options(show_all=True).first()
+                    )
+
+            if not user:
+                response_object = {
+                    'status': 'fail',
+                    'message': 'invalid password'
+                }
+
+                return make_response(jsonify(response_object)), 401
+
+            if not one_time_code or str(one_time_code) != user.one_time_code:
+                response_object = {
+                    'status': 'fail',
+                    'message': 'One time code not valid'
+                }
+
+                return make_response(jsonify(response_object)), 401
+
+            if new_password:
+                user.hash_password(new_password)
+            else:
+                user.hash_pin(new_pin)
+
+            user.is_phone_verified = True
+            user.is_activated = True
+            user.one_time_code = None
+
+            auth_token = user.encode_auth_token()
+
+            response_object = create_user_response_object(user, auth_token, 'Successfully set pin')
+
+            db.session.commit()
+
+            return make_response(jsonify(attach_host(response_object))), 200
+
+        # Check authorisation using regular auth
+        elif auth_header and auth_header != 'null' and old_password:
+            split_header = auth_header.split("|")
+            auth_token = split_header[0]
+            resp = User.decode_auth_token(auth_token)
+            if isinstance(resp, str):
+                response_object = {
+                    'status': 'fail',
+                    'message': 'Invalid auth token'
+                }
+
+                return make_response(jsonify(response_object)), 401
+
+            user = User.query.filter_by(id=resp.get('id')).execution_options(show_all=True).first()
+
+            if not user:
+                response_object = {
+                    'status': 'fail',
+                    'message': 'invalid password'
+                }
+
+                return make_response(jsonify(response_object)), 401
+
+            if not user.verify_password(old_password):
+                response_object = {
+                    'status': 'fail',
+                    'message': 'invalid password'
+                }
+
+                return make_response(jsonify(response_object)), 401
+
+        # Check authorisation using a reset token provided via email
+        else:
+
+            reset_password_token = post_data.get('reset_password_token')
+
+            if not reset_password_token:
+                response_object = {
+                    'status': 'fail',
+                    'message': 'Missing token.'
+                }
+
+                return make_response(jsonify(response_object)), 401
+
+            reset_password_token = reset_password_token.split(" ")[0]
+
+            validity_check = User.decode_single_use_JWS(reset_password_token, 'R')
+
+            if not validity_check['success']:
+                response_object = {
+                    'status': 'fail',
+                    'message': validity_check['message']
+                }
+
+                return make_response(jsonify(response_object)), 401
+
+            user = validity_check['user']
+
+            reuse_check = user.check_reset_token_already_used(
+                reset_password_token)
+
+            
+            if not reuse_check:
+                response_object = {
+                    'status': 'fail',
+                    'message': 'Token already used'
+                }
+
+                return make_response(jsonify(response_object)), 401
+
+        if not new_password or len(new_password) < 6:
             response_object = {
                 'status': 'fail',
-                'message': 'No email supplied'
+                'message': 'Password must be at least 6 characters long'
             }
 
             return make_response(jsonify(response_object)), 401
 
-        limit = rate_limit("password_reset_"+email, 25)
-        if limit:
-            response_object = {
-                'status': 'fail',
-                'message': f'Please try again in {limit} minutes'
-            }
-            return make_response(jsonify(response_object)), 403
-
-        user = User.query.filter(func.lower(User.email)==email).execution_options(show_all=True).first()
-
-        if user:
-            user.reset_password()
+        user.hash_password(new_password)
+        user.delete_password_reset_tokens()
+        db.session.commit()
 
         response_object = {
             'status': 'success',
-            'message': 'Reset email sent'
+            'message': 'Password changed, please log in'
         }
 
         return make_response(jsonify(attach_host(response_object))), 200
+
+
+class PermissionsAPI(MethodView):
+
+    @requires_auth(allowed_roles={'ADMIN': 'admin'})
+    def get(self):
+
+        admins = User.query.filter_by(has_admin_role=True).all()
+        invites = EmailWhitelist.query.filter_by(used=False, allow_partial_match=False).all()
+
+        admin_list = []
+        for admin in admins:
+
+            admin_list.append({
+                'id': admin.id,
+                'email': admin.email,
+                'admin_tier': admin.admin_tier,
+                'created': admin.created,
+                'is_activated': admin.is_activated,
+                'is_disabled': admin.is_disabled
+            })
+
+        invite_list = []
+        for invite in invites:
+            invite_list.append({
+                'id': invite.id,
+                'email': invite.email,
+                'admin_tier': invite.tier,
+                'created': invite.created,
+            })
+
+        response_object = {
+            'status': 'success',
+            'message': 'Admin List Loaded',
+            'data': {
+                'admins': admin_list,
+                'invites': invite_list
+            },
+        }
+
+        return make_response(jsonify(attach_host(response_object))), 200
+
+    @requires_auth(allowed_roles={'ADMIN': 'admin'})
+    def post(self):
+
+        post_data = request.get_json()
+
+        email = post_data.get('email', '')
+        email = email.lower() if email else ''
+        tier = post_data.get('tier')
+        organisation_id = post_data.get('organisation_id', None)
+
+        if not (email and tier):
+            response_object = {'message': 'No email or tier provided'}
+            return make_response(jsonify(response_object)), 400
+
+        if not AccessControl.has_sufficient_tier(g.user.roles, 'ADMIN', tier):
+            return make_response(jsonify({'message': f'User does not have permission to invite {tier}'})), 400
+
+        if organisation_id and not AccessControl.has_sufficient_tier(g.user.roles, 'ADMIN', 'stengoadmin'):
+            response_object = {'message': 'Not Authorised to set organisation ID'}
+            return make_response(jsonify(response_object)), 401
+
+        target_organisation_id = organisation_id or g.active_organisation.id
+        if not target_organisation_id:
+            response_object = {'message': 'Must provide an organisation to bind user to'}
+            return make_response(jsonify(response_object)), 400
+
+        organisation = Organisation.query.get(target_organisation_id)
+        if not organisation:
+            response_object = {'message': 'Organisation Not Found'}
+            return make_response(jsonify(response_object)), 404
+
+        email_exists_for_org = EmailWhitelist.query.filter(func.lower(EmailWhitelist.email)==email).first()
+        if email_exists_for_org:
+            response_object = {'message': 'Email already on organisation whitelist.'}
+            return make_response(jsonify(response_object)), 400
