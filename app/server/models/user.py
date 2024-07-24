@@ -523,29 +523,154 @@ referrals = Table(
 
             return {'success': False, 'message': e}
 
-    def save_password_reset_token(self, password_reset_token):
-        # make a "clone" of the existing token list
-        self.clear_expired_password_reset_tokens()
-        current_password_reset_tokens = self.password_reset_tokens[:]
-        current_password_reset_tokens.append(password_reset_token)
-        # set db value
-        self.password_reset_tokens = current_password_reset_tokens
+        def clear_expired_reset_tokens(self, token_list):
+        if token_list is None:
+            token_list = []
 
-    def save_pin_reset_token(self, pin_reset_token):
+        valid_tokens = []
+        for token in token_list:
+            validity_check = self.decode_single_use_JWS(token, 'R')
+            if validity_check['success']:
+                valid_tokens.append(token)
+        return valid_tokens
+
+    def clear_expired_password_reset_tokens(self):
+        tokens = self.clear_expired_reset_tokens(self.password_reset_tokens)
+        self.password_reset_tokens = tokens
+
+    def clear_expired_pin_reset_tokens(self):
+        tokens = self.clear_expired_reset_tokens(self.pin_reset_tokens)
+        self.pin_reset_tokens = tokens
+
+    def create_admin_auth(self, email, password, tier='view', organisation=None):
+        self.email = email
+        self.hash_password(password)
+        self.set_held_role('ADMIN', tier)
+
+        if organisation:
+            self.add_user_to_organisation(organisation, is_admin=True)
+
+    def reset_password(self):
+        password_reset_token = self.encode_single_use_JWS('R')
+        self.save_password_reset_token(password_reset_token)
+        send_reset_email(password_reset_token, self.email)
+
+    def add_user_to_organisation(self, organisation: Organisation, is_admin=False):
+        if not self.default_organisation:
+            self.default_organisation = organisation
+
+        self.organisations.append(organisation)
+
+        if is_admin and organisation.org_level_transfer_account_id:
+            if organisation.org_level_transfer_account is None:
+                organisation.org_level_transfer_account = (
+                    db.session.query(server.models.transfer_account.TransferAccount)
+                    .execution_options(show_all=True)
+                    .get(organisation.org_level_transfer_account_id))
+
+            self.transfer_accounts.append(organisation.org_level_transfer_account)
+
+    def is_TFA_required(self):
+        if current_app.config['TFA_REQUIRED_ROLES']:
+            for tier in current_app.config['TFA_REQUIRED_ROLES']:
+                if AccessControl.has_exact_role(self.roles, 'ADMIN', tier):
+                    return True
+        return False
+
+    def is_TFA_secret_set(self):
+        return bool(self._TFA_secret)
+
+    def set_TFA_secret(self):
+        secret = pyotp.random_base32()
+        self._TFA_secret = encrypt_string(secret)
+
+    def reset_TFA(self):
+        self.TFA_enabled = False
+        self._TFA_secret = None
+
+    def get_TFA_secret(self):
+        return decrypt_string(self._TFA_secret)
+
+    def validate_OTP(self, input_otp):
+        secret = self.get_TFA_secret()
+        server_otp = pyotp.TOTP(secret)
+        ret = server_otp.verify(input_otp, valid_window=2)
+        return ret
+
+    def set_one_time_code(self, supplied_one_time_code):
+        if supplied_one_time_code is None:
+            self.one_time_code = str(random.randint(0, 9999)).zfill(4)
+        else:
+            self.one_time_code = supplied_one_time_code
+
+    # pin as used in mobile. is set to password. we should probably change this to be same as ussd pin
+    def set_pin(self, supplied_pin=None, is_activated=False):
+        self.is_activated = is_activated
+
+        if not is_activated:
+            # Use a one time code, either generated or supplied. PIN will be set to random number for now
+            self.set_one_time_code(supplied_one_time_code=supplied_pin)
+
+            pin = str(random.randint(0, 9999)).zfill(4)
+        else:
+            pin = supplied_pin
+
+        self.hash_pin(pin)
+
+    def has_valid_pin(self):
+        # not in the process of resetting pin and has a pin
         self.clear_expired_pin_reset_tokens()
+        not_resetting = len(self.pin_reset_tokens) == 0
 
-        current_pin_reset_tokens = self.pin_reset_tokens[:]
-        current_pin_reset_tokens.append(pin_reset_token)
+        return self.pin_hash is not None and not_resetting and self.failed_pin_attempts < 3
 
-        self.pin_reset_tokens = current_pin_reset_tokens
+    def user_details(self):
+        # should drop the country code from phone number?
+        return "{} {} {}".format(self.first_name, self.last_name, self.phone)
 
-    def check_reset_token_already_used(self, password_reset_token):
-        self.clear_expired_password_reset_tokens()
-        is_valid = password_reset_token in self.password_reset_tokens
-        return is_valid
+    def get_most_relevant_transfer_usages(self):
+        '''Finds the transfer usage/business categories there are most relevant for the user
+        based on the last number of send and completed credit transfers supplemented with the
+        defaul business categories
+        :return: list of most relevant transfer usage objects for the usage
+        """
+        '''
 
-    def delete_password_reset_tokens(self):
-        self.password_reset_tokens = []
+        sql = text('''
+            SELECT *, COUNT(*) FROM
+                (SELECT c.transfer_use::text FROM credit_transfer c
+                WHERE c.sender_user_id = {} AND c.transfer_status = 'COMPLETE'
+                ORDER BY c.updated DESC
+                LIMIT 20)
+            C GROUP BY transfer_use ORDER BY count DESC
+        '''.format(self.id))
+        result = db.session.execute(sql)
+        most_common_uses = {}
+        for row in result:
+            if row[0] is not None:
+                for use in json.loads(row[0]):
+                    most_common_uses[use] = row[1]
 
-    def delete_pin_reset_tokens(self):
-        self.pin_reset_tokens = []
+        return most_common_uses
+
+    def get_reserve_token(self):
+        # reserve token is master token for now
+        return Organisation.master_organisation().token
+
+    def __init__(self, blockchain_address=None, **kwargs):
+        super(User, self).__init__(**kwargs)
+
+        self.secret = ''.join(random.choices(
+            string.ascii_letters + string.digits, k=16))
+
+        self.primary_blockchain_address = blockchain_address or bt.create_blockchain_wallet()
+
+    def __repr__(self):
+        if self.has_admin_role:
+            return '<Admin {} {}>'.format(self.id, self.email)
+        elif self.has_vendor_role:
+            return '<Vendor {} {}>'.format(self.id, self.phone)
+        else:
+            return '<User {} {}>'.format(self.id, self.phone)
+            
+track_updates(User)
