@@ -250,43 +250,154 @@ class CreditTransfer(ManyOrgBase, BlockchainTaskableBase):
         self.blockchain_status = BlockchainStatus.SUCCESS
         self.blockchain_hash = transaction_hash
 
-    def resolve_as_complete_and_trigger_blockchain(
-            self,
-            existing_blockchain_txn=None,
-            queue='high-priority',
-            batch_uuid: str=None
-    ):
-
-        self.resolve_as_complete(batch_uuid)
-
-        if not existing_blockchain_txn:
-            self.blockchain_task_uuid = str(uuid4())
-            g.pending_transactions.append((self, queue))
-
-    def resolve_as_complete(self, batch_uuid=None):
+            def resolve_as_rejected(self, message=None):
         if self.transfer_status not in [None, TransferStatusEnum.PENDING, TransferStatusEnum.PARTIAL]:
             raise Exception(f'Resolve called multiple times for transfer {self.id}')
-        try:
-            self.check_sender_transfer_limits()
-        except TransferLimitError as e:
-            if hasattr(g, 'user') and AccessControl.has_suffient_role(g.user.roles, {'ADMIN': 'stengoadmin'}):
-                self.add_message(f'Warning: {e}')
-            else:
-                raise e
-
-        self.resolved_date = datetime.datetime.utcnow()
-        self.transfer_status = TransferStatusEnum.COMPLETE
-        self.blockchain_status = BlockchainStatus.PENDING
-        self.update_balances()
-
-        if (datetime.datetime.utcnow() - self.created).seconds > 5:
-            clear_metrics_cache()
-            rebuild_metrics_cache()
-        if self.recipient_user and self.recipient_user.transfer_card:
-            self.recipient_user.transfer_card.update_transfer_card()
-
-        if batch_uuid:
-            self.batch_uuid = batch_uuid
 
         if self.fiat_ramp and self.transfer_type in [TransferTypeEnum.DEPOSIT, TransferTypeEnum.WITHDRAWAL]:
-            self.fiat_ramp.resolve_as_complete()
+            self.fiat_ramp.resolve_as_rejected()
+
+        self.resolved_date = datetime.datetime.utcnow()
+        self.transfer_status = TransferStatusEnum.REJECTED
+        self.blockchain_status = BlockchainStatus.UNSTARTED
+        self.update_balances()
+
+        if message:
+            self.add_message(message)
+
+    def update_balances(self):
+        self.sender_transfer_account.update_balance()
+        self.recipient_transfer_account.update_balance()
+
+
+    def get_transfer_limits(self):
+        from server.utils.transfer_limits import (LIMIT_IMPLEMENTATIONS, get_applicable_transfer_limits)
+
+        return get_applicable_transfer_limits(LIMIT_IMPLEMENTATIONS, self)
+
+    def check_sender_transfer_limits(self):
+        if self.sender_user is None:
+            # skip if there is no sender, which implies system send
+            return
+
+        relevant_transfer_limits = self.get_transfer_limits()
+        for limit in relevant_transfer_limits:
+
+            try:
+                limit.validate_transfer(self)
+            except (
+                    TransferAmountLimitError,
+                    TransferCountLimitError,
+                    TransferBalanceFractionLimitError,
+                    MaximumPerTransferLimitError,
+                    MinimumSentLimitError,
+                    NoTransferAllowedLimitError
+            ) as e:
+                self.resolve_as_rejected(message=e.message)
+                raise e
+
+        return relevant_transfer_limits
+
+    def check_sender_has_sufficient_balance(self):
+        return self.sender_transfer_account.unrounded_balance - Decimal(self.transfer_amount) >= 0
+
+    def check_sender_is_approved(self):
+        return self.sender_user and self.sender_transfer_account.is_approved
+
+    def check_recipient_is_approved(self):
+        return self.recipient_user and self.recipient_transfer_account.is_approved
+
+    def _select_transfer_account(self, token, user):
+        if token is None:
+            raise Exception("Token must be specified")
+        return find_transfer_accounts_with_matching_token(user, token)
+
+    def append_organisation_if_required(self, organisation):
+        if organisation and organisation not in self.organisations:
+            self.organisations.append(organisation)
+
+    def __init__(self,
+                 amount,
+                 token=None,
+                 sender_user=None,
+                 recipient_user=None,
+                 sender_transfer_account=None,
+                 recipient_transfer_account=None,
+                 transfer_type: TransferTypeEnum=None,
+                 uuid=None,
+                 transfer_metadata=None,
+                 fiat_ramp=None,
+                 transfer_subtype: TransferSubTypeEnum=None,
+                 transfer_mode: TransferModeEnum = None,
+                 transfer_card=None,
+                 is_ghost_transfer=False,
+                 require_sufficient_balance=True,
+                 received_third_party_sync=False,
+                 transfer_card_state=None
+                 ):
+
+        if amount < 0:
+            raise Exception("Negative amount provided")
+        self.transfer_amount = amount
+
+        self.sender_user = sender_user
+        self.recipient_user = recipient_user
+
+        self.sender_transfer_account = sender_transfer_account or self._select_transfer_account(
+            token,
+            sender_user
+        )
+
+        self.token = token or self.sender_transfer_account.token
+
+        self.fiat_ramp = fiat_ramp
+
+        if transfer_type is TransferTypeEnum.DEPOSIT:
+            self.sender_transfer_account = self.recipient_transfer_account.token.float_account
+
+        if transfer_type is TransferTypeEnum.WITHDRAWAL:
+            self.recipient_transfer_account = self.sender_transfer_account.token.float_account
+
+        try:
+            self.recipient_transfer_account = recipient_transfer_account or self.recipient_transfer_account or self._select_transfer_account(
+                self.token,
+                recipient_user
+            )
+
+            if is_ghost_transfer is False:
+                self.recipient_transfer_account.is_ghost = False
+        except NoTransferAccountError:
+            self.recipient_transfer_account = TransferAccount(
+                bound_entity=recipient_user,
+                token=token,
+                is_approved=True,
+                is_ghost=is_ghost_transfer
+            )
+            db.session.add(self.recipient_transfer_account)
+
+        if self.sender_transfer_account.token != self.recipient_transfer_account.token:
+            raise Exception("Tokens do not match")
+
+        self.transfer_type = transfer_type
+        self.transfer_subtype = transfer_subtype
+        self.transfer_mode = transfer_mode
+        self.transfer_metadata = transfer_metadata
+        self.transfer_card = transfer_card
+        self.transfer_card_state = transfer_card_state
+        self.received_third_party_sync = received_third_party_sync
+        if uuid is not None:
+            self.uuid = uuid
+
+        self.append_organisation_if_required(self.recipient_transfer_account.organisation)
+        self.append_organisation_if_required(self.sender_transfer_account.organisation)
+
+        if require_sufficient_balance and not self.check_sender_has_sufficient_balance():
+            message = "Sender {} has insufficient balance. Has {}, needs {}.".format(
+                self.sender_transfer_account,
+                str(round(self.sender_transfer_account.balance / 100, 2)),
+                str(round(self.transfer_amount / 100, 2))
+            )
+            self.resolve_as_rejected(message)
+            raise InsufficientBalanceError(message)
+
+        self.update_balances()
