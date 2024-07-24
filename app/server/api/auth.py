@@ -642,38 +642,306 @@ class PermissionsAPI(MethodView):
 
         return make_response(jsonify(attach_host(response_object))), 200
 
+        email_exists = EmailWhitelist.query.filter(func.lower(EmailWhitelist.email)==email)\
+            .execution_options(show_all=True).first()
+        if email_exists and not email_exists.used:
+            response_object = {'message': 'Email already on another organisation whitelist. '
+                                          'Please ask user to create an account first. '
+                                          'Contact support if issue persists.'}
+            return make_response(jsonify(response_object)), 400
+
+        user = User.query.filter(func.lower(User.email)==email).execution_options(show_all=True).first()
+        if user:
+            user.add_user_to_organisation(organisation, is_admin=True)
+            send_invite_email_to_existing_user(organisation, user.email)
+            db.session.commit()
+            response_object = {
+                'message': 'An invite has been sent to an existing user!',
+            }
+
+            return make_response(jsonify(attach_host(response_object))), 201
+
+        invite = EmailWhitelist(email=email,
+                                tier=tier,
+                                organisation_id=target_organisation_id)
+
+        db.session.add(invite)
+
+        send_invite_email(invite, organisation)
+
+        db.session.commit()
+
+        response_object = {
+            'message': 'An invite has been sent!',
+        }
+
+        return make_response(jsonify(attach_host(response_object))), 201
+
+    @requires_auth(allowed_roles={'ADMIN': 'superadmin'})
+    def put(self):
+
+        put_data = request.get_json()
+
+        user_id = put_data.get('user_id')
+        admin_tier = put_data.get('admin_tier')
+        deactivated = put_data.get('deactivated', None)
+
+        invite_id = put_data.get('invite_id')
+        resend = put_data.get('resend', False)
+
+        if resend:
+            invite = EmailWhitelist.query.get(invite_id)
+
+            if not invite:
+                return make_response(jsonify({'message': 'Invite not found'})), 404
+
+            organisation = Organisation.query.get(invite.organisation_id)
+            if not organisation:
+                response_object = {'message': 'Organisation Not Found'}
+                return make_response(jsonify(response_object)), 404
+
+            invite.set_referral_code()
+            invite.sent += 1
+
+            db.session.flush()
+
+            send_invite_email(invite, organisation)
+
+            response_object = {'message': 'An invite has been re-sent!'}
+
+            return make_response(jsonify(attach_host(response_object))), 200
+
+        else:
+            if not user_id:
+                return make_response(jsonify({'message': 'User ID not provided'})), 400
+            user = User.query.get(user_id)
+
+            if not user:
+                response_object = {
+                    'status': 'fail',
+                    'message': 'User not found'
+                }
+
+                return make_response(jsonify(response_object)), 404
+
+            if admin_tier:
+                user.set_held_role('ADMIN',admin_tier)
+                flag_modified(user, '_held_roles')
+            if deactivated is not None:
+                user.is_disabled = deactivated
+
+            response_object = {
+                'message': 'Account status modified',
+                'data': {
+                    'admin': {
+                        'id': user.id,
+                        'email': user.email,
+                        'admin_tier': user.admin_tier,
+                        'created': user.created,
+                        'is_activated': user.is_activated,
+                        'is_disabled': user.is_disabled
+                    }
+                }
+            }
+
+            return make_response(jsonify(attach_host(response_object))), 200
+
+    @requires_auth(allowed_roles={'ADMIN': 'superadmin'})
+    def delete(self):
+        delete_data = request.get_json()
+        invite_id = delete_data.get('invite_id')
+
+        invite = EmailWhitelist.query.get(invite_id)
+
+        if not invite:
+            return make_response(jsonify({'message': 'Invite not found'})), 404
+
+        db.session.delete(invite)
+
+        return make_response(jsonify({'message': 'Deleted Invite'})), 202
+
+
+class BlockchainKeyAPI(MethodView):
+
+    @requires_auth(allowed_roles={'ADMIN': 'superadmin'})
+    def get(self):
+        chain = get_chain()
+        response_object = {
+            'status': 'success',
+            'message': 'Key loaded',
+            'private_key': current_app.config['CHAINS'][chain]['MASTER_WALLET_PRIVATE_KEY'],
+            'address': current_app.config['CHAINS'][chain]['MASTER_WALLET_ADDRESS']
+        }
+
+        return make_response(jsonify(attach_host(response_object))), 200
+
+
+class ExternalCredentialsAPI(MethodView):
+
     @requires_auth(allowed_roles={'ADMIN': 'admin'})
+    def get(self):
+        response_object = {
+            'username': g.active_organisation.external_auth_username, # Change this to org's credentials
+            'password': g.active_organisation.external_auth_password
+        }
+
+        return make_response(jsonify(attach_host(response_object))), 200
+
+
+class TwoFactorAuthAPI(MethodView):
+    @requires_auth
+    def get(self):
+        tfa_url = g.user.tfa_url
+        response_object = {
+            'data': {"tfa_url": tfa_url}
+        }
+
+        return make_response(jsonify(attach_host(response_object))), 200
+
+    @requires_auth(ignore_tfa_requirement=True)
     def post(self):
+        request_data = request.get_json()
+        user = g.user
+        otp_token = request_data.get('otp')
+        otp_expiry_interval = request_data.get('otp_expiry_interval')
 
-        post_data = request.get_json()
+        malformed_otp = False
+        try:
+            int(otp_token)
+        except ValueError:
+            malformed_otp = True
 
-        email = post_data.get('email', '')
-        email = email.lower() if email else ''
-        tier = post_data.get('tier')
-        organisation_id = post_data.get('organisation_id', None)
+        if not isinstance(otp_token, str) or len(otp_token) != 6:
+            malformed_otp = True
 
-        if not (email and tier):
-            response_object = {'message': 'No email or tier provided'}
-            return make_response(jsonify(response_object)), 400
+        if malformed_otp:
+            response_object = {
+                'status': "Failed",
+                'message': "OTP must be a 6 digit numeric string"
+            }
 
-        if not AccessControl.has_sufficient_tier(g.user.roles, 'ADMIN', tier):
-            return make_response(jsonify({'message': f'User does not have permission to invite {tier}'})), 400
+            return make_response(jsonify(attach_host(response_object))), 400
 
-        if organisation_id and not AccessControl.has_sufficient_tier(g.user.roles, 'ADMIN', 'stengoadmin'):
-            response_object = {'message': 'Not Authorised to set organisation ID'}
-            return make_response(jsonify(response_object)), 401
+        if user.validate_OTP(otp_token):
+            tfa_auth_token = user.encode_TFA_token(otp_expiry_interval)
+            user.TFA_enabled = True
 
-        target_organisation_id = organisation_id or g.active_organisation.id
-        if not target_organisation_id:
-            response_object = {'message': 'Must provide an organisation to bind user to'}
-            return make_response(jsonify(response_object)), 400
+            db.session.commit()
 
-        organisation = Organisation.query.get(target_organisation_id)
-        if not organisation:
-            response_object = {'message': 'Organisation Not Found'}
-            return make_response(jsonify(response_object)), 404
+            if tfa_auth_token:
+                auth_token = g.user.encode_auth_token()
 
-        email_exists_for_org = EmailWhitelist.query.filter(func.lower(EmailWhitelist.email)==email).first()
-        if email_exists_for_org:
-            response_object = {'message': 'Email already on organisation whitelist.'}
-            return make_response(jsonify(response_object)), 400
+                response_object = create_user_response_object(user, auth_token, 'Successfully logged in.')
+
+                response_object['tfa_auth_token'] = tfa_auth_token.decode()
+
+                return make_response(jsonify(attach_host(response_object))), 200
+
+        response_object = {
+            'status': "Failed",
+            'message': "Validation failed. Please try again."
+        }
+
+        return make_response(jsonify(response_object)), 400
+
+
+class CheckBasicAuth(MethodView):
+    @requires_auth(allowed_basic_auth_types=('internal', 'external'), allow_query_string_auth=True)
+    def get(self):
+        response_object = {
+            'status': 'success',
+        }
+
+        return make_response(jsonify(attach_host(response_object))), 200
+
+
+class CheckTokenAuth(MethodView):
+    @requires_auth(allowed_roles={'ADMIN': 'superadmin'})
+    def get(self):
+        response_object = {
+            'status': 'success',
+        }
+
+        return make_response(jsonify(attach_host(response_object))), 200
+
+
+
+
+# add Rules for API Endpoints
+auth_blueprint.add_url_rule(
+    '/auth/refresh_api_token/',
+    view_func=RefreshTokenAPI.as_view('refresh_token_api'),
+    methods=['GET']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/register/',
+    view_func=RegisterAPI.as_view('register_api'),
+    methods=['POST']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/request_api_token/',
+    view_func=LoginAPI.as_view('login_api'),
+    methods=['POST', 'GET']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/logout/',
+    view_func=LogoutAPI.as_view('logout_view'),
+    methods=['POST']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/activate/',
+    view_func=ActivateUserAPI.as_view('activate_view'),
+    methods=['POST']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/reset_password/',
+    view_func=ResetPasswordAPI.as_view('reset_view'),
+    methods=['POST']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/request_reset_email/',
+    view_func=RequestPasswordResetEmailAPI.as_view('request_reset_email_view'),
+    methods=['POST']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/permissions/',
+    view_func=PermissionsAPI.as_view('permissions_view'),
+    methods=['POST', 'PUT', 'GET', 'DELETE']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/blockchain/',
+    view_func=BlockchainKeyAPI.as_view('blockchain_view'),
+    methods=['GET']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/external/',
+    view_func=ExternalCredentialsAPI.as_view('external_credentials_view'),
+    methods=['GET']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/tfa/',
+    view_func=TwoFactorAuthAPI.as_view('tfa_view'),
+    methods=['GET', 'POST']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/check/basic/',
+    view_func=CheckBasicAuth.as_view('check_basic_auth'),
+    methods=['GET']
+)
+
+auth_blueprint.add_url_rule(
+    '/auth/check/token/',
+    view_func=CheckTokenAuth.as_view('check_token_auth'),
+    methods=['GET']
+)
