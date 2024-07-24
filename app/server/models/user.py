@@ -318,52 +318,234 @@ referrals = Table(
     def has_beneficiary_role(cls):
         return cls._held_roles.has_key('BENEFICIARY')
 
-    @hybrid_property
-    def has_token_agent_role(self):
-        return AccessControl.has_any_tier(self.roles, 'TOKEN_AGENT')
+        @great_circle_distance.expression
+    def great_circle_distance(cls, lat, lng):
+        return cls._haversine(func, cls, lat, lng)
 
-    @has_token_agent_role.expression
-    def has_token_agent_role(cls):
-        return cls._held_roles.has_key('TOKEN_AGENT')
+    @staticmethod
+    def _haversine(lib, selfref, lat, lng):
+        return 6371 * lib.acos(
+            lib.cos(lib.radians(selfref.lat))
+            * lib.cos(lib.radians(lat))
+            * lib.cos(lib.radians(selfref.lng) - lib.radians(lng))
+            + lib.sin(lib.radians(selfref.lat))
+            * lib.sin(lib.radians(lat))
+        )
 
-    @hybrid_property
-    def has_group_account_role(self):
-        return AccessControl.has_any_tier(self.roles, 'GROUP_ACCOUNT')
+    def get_users_within_radius(self, radius):
+        if not (self.lat or self.lng):
+            raise Exception('Cannot get users within radius-- User location undefined')
 
-    @has_group_account_role.expression
-    def has_group_account_role(cls):
-        return cls._held_roles.has_key('GROUP_ACCOUNT')
+        return db.session.query(User).filter(self.users_within_radius_filter(radius)).all()
 
-    @hybrid_property
-    def admin_tier(self):
-        return self._held_roles.get('ADMIN', None)
+    def users_within_radius_filter(self, radius):
+        return or_(
+            and_(User.lat==None, User.lng==None),
+            and_(User.lat==self.lat, User.lng==self.lng),
+            User.great_circle_distance(self.lat, self.lng) < radius,
+            and_(self._location is not None, User._location == self._location)
+        )
 
-    @hybrid_property
-    def vendor_tier(self):
-        return self._held_roles.get('VENDOR', None)
+    def get_transfer_account_for_organisation(self, organisation):
+        for ta in self.transfer_accounts:
+            if ta.organisation.id == organisation.id:
+                return ta
 
-    @hybrid_property
-    def is_vendor(self):
-        return AccessControl.has_sufficient_tier(self.roles, 'VENDOR', 'vendor')
+        raise Exception(
+            f"No matching transfer account for user {self}, token {organisation.token} and organsation {organisation}"
+        )
 
-    @hybrid_property
-    def is_supervendor(self):
-        return AccessControl.has_sufficient_tier(self.roles, 'VENDOR', 'supervendor')
+    def get_transfer_account_for_token(self, token):
+        return find_transfer_accounts_with_matching_token(self, token)
 
-    @hybrid_property
-    def organisation_ids(self):
-        return [organisation.id for organisation in self.organisations]
+    def fallback_active_organisation(self):
+        if len(self.organisations) == 0:
+            return None
 
-    @property
-    def transfer_account(self):
-        active_organisation = getattr(g, "active_organisation", None) or self.fallback_active_organisation()
+        if len(self.organisations) > 1:
+            return self.default_organisation
 
-        return self.get_transfer_account_for_organisation(active_organisation)
+        return self.organisations[0]
 
-    @hybrid_method
-    def great_circle_distance(self, lat, lng):
+    def update_last_seen_ts(self):
+        pass
+        # cur_time = datetime.datetime.utcnow()
+        # if self._last_seen:
+        #     # default to 1 minute intervals
+        #     if cur_time - self._last_seen >= datetime.timedelta(minutes=1):
+        #         self._last_seen = cur_time
+        # else:
+        #     self._last_seen = cur_time
+
+    @staticmethod
+    def salt_hash_secret(password):
+        f = Fernet(config.PASSWORD_PEPPER)
+        return f.encrypt(bcrypt.hashpw(password.encode(), bcrypt.gensalt())).decode()
+
+    @staticmethod
+    def check_salt_hashed_secret(password, hashed_password):
+        if not hashed_password:
+            return False
+        f = Fernet(config.PASSWORD_PEPPER)
+        hashed_password = f.decrypt(hashed_password.encode())
+        return bcrypt.checkpw(password.encode(), hashed_password)
+
+    def hash_password(self, password):
+        self.password_hash = self.salt_hash_secret(password)
+
+    def verify_password(self, password):
+        return self.check_salt_hashed_secret(password, self.password_hash)
+
+    def hash_pin(self, pin):
+        self.pin_hash = self.salt_hash_secret(pin)
+
+    def verify_pin(self, pin):
+        return self.check_salt_hashed_secret(pin, self.pin_hash)
+
+    def encode_TFA_token(self, valid_days=1):
         """
-        Tries to calculate the great circle distance between
-        the two locations in km by using the Haversine formula.
+        Generates the Auth Token for TFA
+        :return: string
         """
-        return self._haversine(math, self, lat, lng)
+        try:
+
+            payload = {
+                'token_type': 'TFA',
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(days=valid_days, seconds=30),
+                'iat': datetime.datetime.utcnow(),
+                'id': self.id
+            }
+
+            tfa = jwt.encode(
+                payload,
+                current_app.config['SECRET_KEY'],
+                algorithm='HS256'
+            )
+            return bytes(tfa, 'utf-8') if isinstance(tfa, str) else tfa
+        except Exception as e:
+            return e
+
+    def encode_auth_token(self):
+        """
+        Generates the Auth Token
+        :return: string
+        """
+        try:
+
+            payload = {
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(
+                    seconds=current_app.config['AUTH_TOKEN_EXPIRATION']
+                ),
+                'iat': datetime.datetime.utcnow(),
+                'id': self.id,
+                'roles': self.roles
+            }
+
+            token = jwt.encode(
+                payload,
+                current_app.config['SECRET_KEY'],
+                algorithm='HS256'
+            )
+            return bytes(token, 'utf-8') if isinstance(token, str) else token
+        except Exception as e:
+            return e
+
+    @staticmethod
+    def decode_auth_token(auth_token, token_type='Auth'):
+        """
+        Validates the auth token
+        :param auth_token:
+        :return: integer|string
+        """
+        try:
+            payload = jwt.decode(
+                auth_token,
+                current_app.config['SECRET_KEY'],
+                algorithms='HS256',
+                options={
+                    'verify_exp': current_app.config['VERIFY_JWT_EXPIRY']
+                }
+            )
+            is_blacklisted_token = BlacklistToken.check_blacklist(payload)
+            if is_blacklisted_token:
+                return 'Token blacklisted. Please log in again.'
+            else:
+                return bytes(payload, 'utf-8') if isinstance(payload, str) else payload
+
+        except jwt.ExpiredSignatureError:
+            return '{} Token Signature expired.'.format(token_type)
+        except jwt.InvalidTokenError:
+            return 'Invalid {} Token.'.format(token_type)
+
+    def encode_single_use_JWS(self, token_type):
+
+        s = TimedJSONWebSignatureSerializer(current_app.config['SECRET_KEY'],
+                                            expires_in=current_app.config['SINGLE_USE_TOKEN_EXPIRATION'])
+
+        return s.dumps({'id': self.id, 'type': token_type}).decode("utf-8")
+
+    @classmethod
+    def decode_single_use_JWS(cls, token, required_type):
+
+        try:
+            s = TimedJSONWebSignatureSerializer(
+                current_app.config['SECRET_KEY'])
+
+            data = s.loads(token.encode("utf-8"))
+
+            user_id = data.get('id')
+
+            token_type = data.get('type')
+
+            if token_type != required_type:
+                return {'success': False, 'message': 'Wrong token type (needed %s)' % required_type}
+
+            if not user_id:
+                return {'success': False, 'message': 'No User ID provided'}
+
+            user = cls.query.filter_by(
+                id=user_id).execution_options(show_all=True).first()
+
+            if not user:
+                return {'success': False, 'message': 'User not found'}
+
+            return {'success': True, 'user': user}
+
+        except BadSignature:
+
+            return {'success': False, 'message': 'Token signature not valid'}
+
+        except SignatureExpired:
+
+            return {'success': False, 'message': 'Token has expired'}
+
+        except Exception as e:
+
+            return {'success': False, 'message': e}
+
+    def save_password_reset_token(self, password_reset_token):
+        # make a "clone" of the existing token list
+        self.clear_expired_password_reset_tokens()
+        current_password_reset_tokens = self.password_reset_tokens[:]
+        current_password_reset_tokens.append(password_reset_token)
+        # set db value
+        self.password_reset_tokens = current_password_reset_tokens
+
+    def save_pin_reset_token(self, pin_reset_token):
+        self.clear_expired_pin_reset_tokens()
+
+        current_pin_reset_tokens = self.pin_reset_tokens[:]
+        current_pin_reset_tokens.append(pin_reset_token)
+
+        self.pin_reset_tokens = current_pin_reset_tokens
+
+    def check_reset_token_already_used(self, password_reset_token):
+        self.clear_expired_password_reset_tokens()
+        is_valid = password_reset_token in self.password_reset_tokens
+        return is_valid
+
+    def delete_password_reset_tokens(self):
+        self.password_reset_tokens = []
+
+    def delete_pin_reset_tokens(self):
+        self.pin_reset_tokens = []
