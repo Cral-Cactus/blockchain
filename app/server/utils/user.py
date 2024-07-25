@@ -568,42 +568,201 @@ def proccess_create_or_modify_user_request(
                 business_usage=business_usage
             )
 
-            set_location_conditionally(user, location, gps_location)
+        if referred_by_user:
+        user.referred_by.append(referred_by_user)
 
-            if referred_by_user:
-                user.referred_by.clear()  # otherwise prior referrals will remain...
-                user.referred_by.append(referred_by_user)
+    if attribute_dict.get('gender'):
+        attribute_dict['custom_attributes']['gender'] = attribute_dict.get('gender')
 
-            set_custom_attributes(attribute_dict, user)
-            flag_modified(user, "custom_attributes")
+    if attribute_dict.get('bio'):
+        attribute_dict['custom_attributes']['bio'] = attribute_dict.get('bio')
 
-            db.session.commit()
+    set_custom_attributes(attribute_dict, user)
 
-            response_object = {
-                'message': 'User Updated',
-                'data': {'user': user_schema.dump(user).data}
-            }
+    if is_self_sign_up and attribute_dict.get('deviceInfo', None) is not None:
+        save_device_info(device_info=attribute_dict.get(
+            'deviceInfo'), user=user)
+    # Location fires an async task that needs to know user ID
+    db.session.flush()
 
-            return response_object, 200
+    if phone:
+        if is_self_sign_up:
+            send_one_time_code(phone=phone, user=user)
+            return {'message': 'User Created. Please verify phone number.', 'otp_verify': True}, 200
 
-        except Exception as e:
-            response_object = {
-                'message': str(e)
-            }
+        elif current_app.config['ONBOARDING_SMS']:
+            try:
+                send_onboarding_sms_messages(user)
+            except Exception as e:
+                print(e)
+                sentry_sdk.capture_exception(e)
+                pass
 
-            return response_object, 400
+    response_object = {
+        'message': 'User Created',
+        'data': {
+            'user': user_schema.dump(user).data
+        }
+    }
 
-    user = create_transfer_account_user(
-        first_name=first_name, last_name=last_name, preferred_language=preferred_language,
-        phone=phone, email=email, public_serial_number=public_serial_number, uuid=uuid,
-        organisation=organisation if organisation else g.active_organisation,
-        blockchain_address=blockchain_address,
-        transfer_account_name=transfer_account_name,
-        use_precreated_pin=use_precreated_pin,
-        use_last_4_digits_of_id_as_initial_pin=use_last_4_digits_of_id_as_initial_pin,
-        existing_transfer_account=existing_transfer_account,
-        roles=roles_to_set,
-        is_self_sign_up=is_self_sign_up,
-        business_usage=business_usage, initial_disbursement=initial_disbursement)
+    return response_object, 200
 
-    set_location_conditionally(user, location, gps_location)
+
+def send_onboarding_sms_messages(user):
+
+    # First send the intro message
+    organisation = getattr(g, 'active_organisation', None) or user.default_organisation
+
+    intro_message = i18n_for(
+        user,
+        "general_sms.welcome.{}".format(organisation.custom_welcome_message_key or 'generic'),
+        first_name=user.first_name,
+        balance=rounded_dollars(user.transfer_account.balance),
+        token=user.transfer_account.token.name
+    )
+
+    send_translated_message(user,
+        "general_sms.welcome.{}".format(organisation.custom_welcome_message_key or 'generic'),
+        first_name=user.first_name,
+        balance=rounded_dollars(user.transfer_account.balance),
+        token=user.transfer_account.token.name)
+
+    send_terms_message_if_required(user)
+
+
+def send_terms_message_if_required(user):
+
+    if not user.seen_latest_terms:
+        send_translated_message(user, "general_sms.terms")
+        user.seen_latest_terms = True
+
+
+def send_onboarding_message(to_phone, first_name, amount, currency_name, one_time_code):
+    if to_phone:
+        receiver_message = '{}, you have been registered for {}. You have {} {}. Your one-time code is {}. ' \
+                           'Download Sempo for Android: https://bit.ly/2UVZLqf' \
+            .format(
+            first_name,
+            current_app.config['PROGRAM_NAME'],
+            amount if not None else 0,
+            currency_name,
+            one_time_code,
+        )
+
+        send_message(to_phone, receiver_message)
+
+
+def send_phone_verification_message(to_phone, one_time_code):
+    if to_phone:
+        send_translated_message(phone=to_phone, message_key='verification_code', code=one_time_code)
+
+def send_sms(user, message_key):
+    send_translated_message(user, "user.{}".format(message_key))
+
+def change_pin(user, new_pin):
+    user.hash_pin(new_pin)
+    user.delete_pin_reset_tokens()
+
+
+def change_initial_pin(user: User, new_pin):
+    user.is_activated = True
+    change_pin(user, new_pin)
+
+
+def change_current_pin(user: User, new_pin):
+    change_pin(user, new_pin)
+
+
+def admin_reset_user_pin(user: User):
+    user.set_one_time_code(None)
+    user.pin_hash = None
+
+    pin_reset_token = user.encode_single_use_JWS('R')
+    user.save_pin_reset_token(pin_reset_token)
+    user.failed_pin_attempts = 0
+
+def default_transfer_account(user: User) -> TransferAccount:
+    if user.default_transfer_account is not None:
+        return user.default_transfer_account
+    else:
+        raise TransferAccountNotFoundError("no default transfer account set")
+
+
+def default_token(user: User) -> Token:
+    try:
+        transfer_account = default_transfer_account(user)
+        token = transfer_account.token
+    except TransferAccountNotFoundError:
+        if user.default_organisation is not None:
+            token = user.default_organisation.token
+        else:
+            token = Organisation.master_organisation().token
+
+        if token is None:
+            raise Exception('no default token for user')
+
+    return token
+
+
+def get_user_by_phone(phone: str, region: Optional[str] = None, should_raise=False) -> Optional[User]:
+    try:
+        user = User.query.execution_options(show_all=True).filter_by(
+            phone=proccess_phone_number(phone_number=phone, region=region)
+        ).first()
+    except NumberParseException as e:
+        if should_raise:
+            raise e
+        else:
+            return None
+
+    if user is not None:
+        return user
+    else:
+        if should_raise:
+            raise Exception('User not found.')
+        else:
+            return None
+
+
+def transfer_usages_for_user(user: User) -> List[TransferUsage]:
+    most_common_uses = user.get_most_relevant_transfer_usages()
+
+    def usage_sort(a, b):
+        ma = most_common_uses.get(a.name)
+        mb = most_common_uses.get(b.name)
+
+        # return prioritied, then used, then everything else
+        if a.priority and b.priority:
+            if a.priority < b.priority:
+                return -1
+            else:
+                return 1
+        elif a.priority:
+            return -1
+        elif b.priority:
+            return 1
+        elif ma is not None and mb is not None:
+            if ma >= mb:
+                return -1
+            else:
+                return 1
+        elif ma is not None:
+            return -1
+        elif mb is not None:
+            return 1
+        else:
+            return -1
+
+    ordered_transfer_usages = sorted(TransferUsage.query.all(), key=cmp_to_key(usage_sort))
+    return ordered_transfer_usages
+
+def create_transfer_account_if_required(blockchain_address, token, account_type=TransferAccountType.EXTERNAL):
+    transfer_account = TransferAccount.query.execution_options(show_all=True).filter_by(blockchain_address=blockchain_address).first()
+    if transfer_account:
+        return transfer_account
+    else:
+        return TransferAccount(
+            blockchain_address=blockchain_address,
+            token=token,
+            account_type=account_type
+        )
