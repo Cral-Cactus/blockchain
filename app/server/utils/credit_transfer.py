@@ -1,0 +1,346 @@
+import hashlib
+import hmac
+from datetime import datetime, timedelta
+import time
+from flask import make_response, jsonify, current_app
+import sentry_sdk
+from decimal import Decimal
+
+from server.exceptions import (
+    NoTransferAccountError,
+    UserNotFoundError,
+    InsufficientBalanceError,
+    AccountNotApprovedError,
+    InvalidTargetBalanceError,
+    TransferAccountNotFoundError
+)
+
+from server import db
+from server.models.transfer_usage import TransferUsage
+from server.models.transfer_account import TransferAccount
+from server.models.blockchain_address import BlockchainAddress
+from server.models.credit_transfer import CreditTransfer
+from server.models.user import User
+from server.schemas import me_credit_transfer_schema
+from server.utils import user as UserUtils
+from server.utils.transfer_enums import TransferTypeEnum, TransferSubTypeEnum, TransferModeEnum, BlockchainStatus
+from server.utils.user import create_transfer_account_if_required
+
+
+def cents_to_dollars(amount_cents):
+    return Decimal(amount_cents) / 100
+
+
+def dollars_to_cents(amount_dollars):
+    return Decimal(amount_dollars) * 100
+
+def find_user_with_transfer_account_from_identifiers(user_id, public_identifier, transfer_account_id):
+
+    user, transfer_card = find_user_from_identifiers(user_id, public_identifier, transfer_account_id)
+
+    if user and not user.transfer_accounts:
+        raise NoTransferAccountError('User {} does not have a transfer account'.format(user))
+
+    return user, transfer_card
+
+
+def find_user_from_identifiers(user_id, public_identifier, transfer_account_id):
+
+    if user_id:
+        user = User.query.get(user_id)
+
+        if not user:
+            raise UserNotFoundError('User not found for user id {}'.format(user_id))
+        else:
+            return user, None
+
+    if public_identifier:
+        user, transfer_card = UserUtils.find_user_from_public_identifier(public_identifier)
+
+        if not user:
+            raise UserNotFoundError('User not found for public identifier {}'.format(user_id))
+        else:
+            return user, transfer_card
+
+    if transfer_account_id:
+        transfer_account = TransferAccount.query.get(transfer_account_id)
+
+        user = transfer_account.primary_user
+
+        if not user:
+            raise UserNotFoundError('User not found for public identifier {}'.format(user_id))
+        else:
+            return user, None
+
+    return None, None
+
+def handle_transfer_to_blockchain_address(
+        transfer_amount, sender_transfer_account, recipient_blockchain_address, transfer_use, transfer_mode, uuid=None):
+
+    if transfer_amount > sender_transfer_account.balance:
+        response_object = {
+            'message': 'Insufficient funds',
+            'feedback': True,
+        }
+        return make_response(jsonify(response_object)), 400
+
+    try:
+        transfer = make_blockchain_transfer(transfer_amount,
+                                            sender_transfer_account.token,
+                                            sender_transfer_account.blockchain_address,
+                                            recipient_blockchain_address,
+                                            transfer_use,
+                                            transfer_mode,
+                                            uuid=None)
+
+        # This is the top-level commit for this flow
+        db.session.commit()
+
+    except AccountNotApprovedError as e:
+        response_object = {
+            'message': "Sender is not approved",
+            'feedback': True,
+        }
+        return make_response(jsonify(response_object)), 400
+
+    except InsufficientBalanceError as e:
+        response_object = {
+            'message': "Insufficient balance",
+            'feedback': True,
+        }
+        return make_response(jsonify(response_object)), 400
+
+    response_object = {
+        'message': 'Payment Successful',
+        'feedback': True,
+        'data': {
+            'credit_transfer': me_credit_transfer_schema.dump(transfer).data
+        }
+    }
+
+    return make_response(jsonify(response_object)), 201
+
+def create_address_object_if_required(address):
+    address_obj = BlockchainAddress.query.filter_by(address=address).first()
+
+    if not address_obj:
+        address_obj = BlockchainAddress(type="EXTERNAL")
+        address_obj.address = address
+
+        db.session.add(address_obj)
+
+    return address_obj
+
+
+def make_blockchain_transfer(transfer_amount,
+                             token,
+                             send_address,
+                             receive_address,
+                             transfer_use=None,
+                             transfer_mode=None,
+                             require_sender_approved=False,
+                             require_sufficient_balance=False,
+                             automatically_resolve_complete=True,
+                             uuid=None,
+                             existing_blockchain_txn=False,
+                             transfer_type=TransferTypeEnum.PAYMENT
+                             ):
+
+
+    sender_transfer_account = create_transfer_account_if_required(send_address, token)
+    recipient_transfer_account = create_transfer_account_if_required(receive_address, token)
+
+    sender_user = sender_transfer_account.primary_user
+    recipient_user = recipient_transfer_account.primary_user
+
+    require_recipient_approved = False
+    transfer = make_payment_transfer(transfer_amount=transfer_amount,
+                                     token=token,
+                                     send_transfer_account=sender_transfer_account,
+                                     receive_transfer_account=recipient_transfer_account,
+                                     send_user=sender_user,
+                                     receive_user=recipient_user,
+                                     transfer_use=transfer_use,
+                                     transfer_mode=transfer_mode,
+                                     require_sender_approved=require_sender_approved,
+                                     require_recipient_approved=require_recipient_approved,
+                                     require_sufficient_balance=require_sufficient_balance,
+                                     automatically_resolve_complete=False)
+
+    transfer.transfer_type = transfer_type
+
+    if uuid:
+        transfer.uuid = uuid
+
+    if automatically_resolve_complete:
+        transfer.resolve_as_complete()
+
+    return transfer
+
+
+def make_payment_transfer(
+        transfer_amount,
+        token=None,
+        send_user=None,
+        send_transfer_account=None,
+        receive_user=None,
+        receive_transfer_account=None,
+        transfer_use=None,
+        transfer_mode=None,
+        require_sender_approved=True,
+        require_recipient_approved=True,
+        require_sufficient_balance=True,
+        automatically_resolve_complete=True,
+        uuid=None,
+        transfer_subtype: TransferSubTypeEnum=TransferSubTypeEnum.STANDARD,
+        is_ghost_transfer=False,
+        queue='high-priority',
+        batch_uuid=None,
+        transfer_type=TransferTypeEnum.PAYMENT,
+        transfer_card=None,
+        transfer_card_state=None
+):
+    """
+    This is used for internal transfers between Sempo wallets.
+    :param transfer_amount:
+    :param token:
+    :param send_user:
+    :param send_transfer_account:
+    :param receive_user:
+    :param receive_transfer_account:
+    :param transfer_use:
+    :param transfer_mode: TransferModeEnum
+    :param require_sender_approved:
+    :param require_recipient_approved:
+    :param require_sufficient_balance:
+    :param automatically_resolve_complete:
+    :param uuid:
+    :param transfer_subtype: accepts TransferSubType str.
+    :param is_ghost_transfer: if an account is created for recipient just to exchange, it's not real
+    :param queue:
+    :param batch_uuid:
+    :param transfer_type: the type of transfer
+    :param transfer_card: the card that was used to make the payment
+    :param transfer_card_state: the object associated with the transfer card usage
+    :return:
+    """
+    if transfer_subtype is TransferSubTypeEnum.DISBURSEMENT:
+        require_sender_approved = False
+        require_recipient_approved = False
+        # primary NGO wallet to disburse from
+        send_transfer_account = send_transfer_account or receive_user.default_organisation.queried_org_level_transfer_account
+
+    if transfer_subtype is TransferSubTypeEnum.RECLAMATION:
+        require_sender_approved = False
+        # primary NGO wallet to reclaim to
+        receive_transfer_account = send_user.default_organisation.queried_org_level_transfer_account
+
+    if transfer_subtype is TransferSubTypeEnum.INCENTIVE:
+        send_transfer_account = send_transfer_account or receive_transfer_account.token.float_account
+
+    transfer = CreditTransfer(transfer_amount,
+                              token=token,
+                              sender_user=send_user,
+                              sender_transfer_account=send_transfer_account,
+                              recipient_user=receive_user,
+                              recipient_transfer_account=receive_transfer_account,
+                              uuid=uuid,
+                              transfer_type=transfer_type,
+                              transfer_subtype=transfer_subtype,
+                              transfer_mode=transfer_mode,
+                              transfer_card=transfer_card,
+                              is_ghost_transfer=is_ghost_transfer,
+                              require_sufficient_balance=require_sufficient_balance,
+                              transfer_card_state=transfer_card_state)
+
+    make_cashout_incentive_transaction = False
+
+    if transfer_use is not None:
+        for use_id in transfer_use:
+            if use_id != 'null':
+                use = TransferUsage.query.get(int(use_id))
+                if use:
+                    transfer.transfer_usages.append(use)
+                    if use.is_cashout:
+                        make_cashout_incentive_transaction = True
+                else:
+                    raise Exception(f'{use_id} not a valid transfer usage')
+
+    transfer.uuid = uuid
+
+    if require_sender_approved and not transfer.check_sender_is_approved():
+        message = "Sender {} is not approved".format(send_transfer_account)
+        transfer.resolve_as_rejected(message)
+        raise AccountNotApprovedError(message, is_sender=True)
+
+    if require_recipient_approved and not transfer.check_recipient_is_approved():
+        message = "Recipient {} is not approved".format(receive_user)
+        transfer.resolve_as_rejected(message)
+        raise AccountNotApprovedError(message, is_sender=False)
+
+
+    if automatically_resolve_complete:
+        transfer.resolve_as_complete_and_trigger_blockchain(queue=queue, batch_uuid=batch_uuid)
+
+
+    if make_cashout_incentive_transaction:
+        try:
+            # todo: check limits apply
+            incentive_amount = round(transfer_amount * current_app.config['CASHOUT_INCENTIVE_PERCENT'] / 100)
+
+            make_payment_transfer(
+                incentive_amount,
+                receive_user=receive_user,
+                transfer_subtype=TransferSubTypeEnum.INCENTIVE,
+                transfer_mode=TransferModeEnum.INTERNAL
+            )
+
+        except Exception as e:
+            print(e)
+            sentry_sdk.capture_exception(e)
+
+    return transfer
+
+
+def make_withdrawal_transfer(transfer_amount,
+                             token,
+                             send_user=None,
+                             sender_transfer_account=None,
+                             transfer_mode=None,
+                             require_sender_approved=True,
+                             require_sufficient_balance=True,
+                             automatically_resolve_complete=True,
+                             uuid=None):
+    """
+    This is used for a user withdrawing funds from their Sempo wallet. Only interacts with Sempo float.
+    :param transfer_amount:
+    :param token:
+    :param send_account:
+    :param transfer_mode:
+    :param require_sender_approved:
+    :param require_sufficient_balance:
+    :param automatically_resolve_complete:
+    :param uuid:
+    :return:
+    """
+
+    transfer = CreditTransfer(
+        transfer_amount,
+        token,
+        sender_user=send_user,
+        sender_transfer_account=sender_transfer_account,
+        uuid=uuid,
+        transfer_type=TransferTypeEnum.WITHDRAWAL,
+        transfer_mode=transfer_mode,
+        require_sufficient_balance=require_sufficient_balance
+    )
+
+    if require_sender_approved and not transfer.check_sender_is_approved():
+        message = "Sender {} is not approved".format(sender_transfer_account)
+        transfer.resolve_as_rejected(message)
+        raise AccountNotApprovedError(message, is_sender=True)
+
+    if automatically_resolve_complete:
+        transfer.resolve_as_complete_and_trigger_blockchain()
+
+    return transfer

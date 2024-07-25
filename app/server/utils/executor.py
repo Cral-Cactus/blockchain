@@ -66,36 +66,3 @@ def add_after_request_executor_job(
         g.deferred_jobs.append((fn, args, kwargs))
     else:
         fn.submit(*args, **kwargs)
-    
-def add_after_request_checkable_executor_job(fn, args=None, kwargs=None):
-    """
-    Like add_after_request_executor_job, but injects and returns a UUID into kwargs for 
-    `status_checkable_executor_job`
-    """
-    func_uuid = str(uuid4())
-    kwargs = {} if not kwargs else kwargs
-    kwargs['func_uuid'] = func_uuid
-    add_after_request_executor_job(fn, args, kwargs)
-    return func_uuid
-
-# Run these after any job!
-def after_deferred_jobs():
-    if g.pending_transactions:
-        bulk_process_transactions()
-
-def bulk_process_transactions():
-    # This is very ugly, but required to get a thread-local CreditTransfer/Exchange instance
-    from server.models.credit_transfer import CreditTransfer
-    from server.models.exchange import Exchange
-    from server.utils import pusher_utils
-    for transaction, queue in g.pending_transactions:
-        pusher_transactions = []
-        if isinstance(transaction, CreditTransfer):
-            transaction = db.session.query(CreditTransfer).filter(CreditTransfer.id == transaction.id).first()
-        else:
-            transaction = db.session.query(Exchange).filter(Exchange.id == transaction.id).first()
-        transaction.send_blockchain_payload_to_worker(queue=queue)
-        pusher_transactions.append(transaction)
-    g.pending_transactions = []
-    if not current_app.config['IS_TEST']:
-        pusher_utils.push_admin_credit_transfer([txn for txn in pusher_transactions])
