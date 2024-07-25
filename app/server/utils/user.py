@@ -266,46 +266,344 @@ def save_device_info(device_info, user):
         # Add the device if the uniqueId is defined, and isn't already in db
         add_device = True
 
-    if add_device:
-        device = DeviceInfo()
+    def set_attachments(attribute_dict, user, custom_attributes):
+    attachments = attribute_dict.get('_attachments', [])
 
-        device.unique_id = device_info['uniqueId']
-        device.brand = device_info['brand']
-        device.model = device_info['model']
-        device.width = device_info['width']
-        device.height = device_info['height']
-        send_translated_message(user, 'new_device', brand=device.brand, model=device.model)
-        device.user = user
+    for attachment in attachments:
+        submitted_filename = attachment['filename'].split('/')[-1]
+        for attribute in custom_attributes:
+            if submitted_filename == attribute.value:
+                type = 'custom_attribute_{}'.format(attribute)
 
-        db.session.add(device)
+                new_filename = generate_new_filename(
+                    submitted_filename, type, 'KOBO')
 
-        return device
+                uploaded_image = UploadedResource(filename=new_filename, file_type=type)
 
+                uploaded_image.user = user
 
-def set_custom_attributes(attribute_dict, user):
-    # loads in any existing custom attributes
-    custom_attributes = user.custom_attributes or []
-    for key in attribute_dict['custom_attributes'].keys():
-        custom_attribute = CustomAttribute.query.filter(CustomAttribute.name == key).first()
-        if not custom_attribute:
-            custom_attribute = CustomAttribute()
-            custom_attribute.name = key
-            db.session.add(custom_attribute)
+                db.session.add(uploaded_image)
 
-        # Put validation logic here!
-        value = attribute_dict['custom_attributes'][key]
-        value = custom_attribute.clean_and_validate_custom_attribute(value)
-        
-        to_remove = list(filter(lambda a: a.custom_attribute.name == key, custom_attributes))
-        for r in to_remove:
-            manually_add_history_entry('user', user.id, key, r.value, value)
-            custom_attributes.remove(r)
-            db.session.delete(r)
-        custom_attribute = CustomAttributeUserStorage(
-            custom_attribute=custom_attribute, value=value)
+                db.session.flush()
 
-        custom_attributes.append(custom_attribute)
-    custom_attributes = set_attachments(
-        attribute_dict, user, custom_attributes)
-    user.custom_attributes = custom_attributes
+                try:
+
+                    if attribute == 'profile_picture':
+
+                        t = threading.Thread(target=save_photo_and_check_for_duplicate,
+                                             args=(attachment['download_url'], new_filename, uploaded_image.id))
+                    else:
+                        t = threading.Thread(target=save_to_s3_from_url,
+                                             args=(attachment['download_url'], new_filename))
+
+                    t.daemon = True
+                    t.start()
+
+                except LoadFileException:
+                    print("File has likely expired")
+                    pass
+
+                attribute.value = new_filename
+                attribute.uploaded_image_id = uploaded_image.id
+                continue
+
     return custom_attributes
+
+
+def set_location_conditionally(user, location, gps_location = None):
+
+    if gps_location:
+        try:
+            gps = gps_location.split(' ')
+            lat = float(gps[0])
+            lng = float(gps[1])
+        except (SyntaxError, IndexError, ValueError):
+            lat = None
+            lng = None
+
+    else:
+        lat = None
+        lng = None
+
+    # Set the location, only updating the latlng if it hasn't been explicitly provided
+    if lat and lng:
+        user.lat = lat
+        user.lng = lng
+        if location:
+            user.location = location
+
+    else:
+        if location:
+            user.location = location
+            user.attempt_update_gps_location()
+
+
+def send_one_time_code(phone, user):
+    try:
+        send_phone_verification_message(
+            to_phone=phone, one_time_code=user.one_time_code)
+
+    except Exception as e:
+        raise PhoneVerificationError(
+            'Something went wrong. ERROR: {}'.format(e))
+
+
+def proccess_create_or_modify_user_request(
+        attribute_dict,
+        organisation=None,
+        allow_existing_user_modify=False,
+        is_self_sign_up=False,
+        modify_only=False
+):
+    """
+    Takes a create or modify user request and determines the response. Normally what's in the top level API function,
+    but here it's one layer down because there's multiple entry points for 'create user':
+    - The admin api
+    - The register api
+
+    :param attribute_dict: attributes that can be supplied by the request maker
+    :param organisation:  what organisation the request maker belongs to. The created user is bound to the same org
+    :param allow_existing_user_modify: whether to return an error when the user already exists for the supplied IDs
+    :param is_self_sign_up: does the request come from the register api?
+    :param modify_only: whether to allow the creation of a  new user
+    :return: An http response
+    """
+    if not attribute_dict.get('custom_attributes'):
+        attribute_dict['custom_attributes'] = {}
+
+    user_id = attribute_dict.get('user_id')
+
+    email = attribute_dict.get('email')
+    phone = attribute_dict.get('phone')
+
+    account_types = attribute_dict.get('account_types', [])
+    if isinstance(account_types, str):
+        account_types = account_types.split(',')
+        account_types = list(map(lambda t: t.strip(), account_types))
+    referred_by = attribute_dict.get('referred_by')
+
+    blockchain_address = attribute_dict.get('blockchain_address')
+
+    provided_public_serial_number = attribute_dict.get('public_serial_number')
+
+    uuid = attribute_dict.get('uuid')
+
+    require_identifier = attribute_dict.get('require_identifier', True)
+
+    if not user_id:
+        # Extract ID from Combined User ID and Name String if it exists
+        try:
+            user_id_name_string = attribute_dict.get('user_id_name_string')
+
+            user_id_str = user_id_name_string and user_id_name_string.split(':')[0]
+
+            if user_id_str:
+                user_id = int(user_id_str)
+
+        except SyntaxError:
+            pass
+
+    if not blockchain_address and provided_public_serial_number:
+
+        try:
+            blockchain_address = to_checksum_address(
+                provided_public_serial_number)
+
+            # Since it's actually an ethereum address set the provided public serial number to None
+            # so it doesn't get used as a transfer card
+            provided_public_serial_number = None
+        except Exception:
+            pass
+
+    require_transfer_card_exists = attribute_dict.get(
+        'require_transfer_card_exists', g.active_organisation.require_transfer_card)
+
+    public_serial_number = (provided_public_serial_number
+                            or attribute_dict.get('payment_card_qr_code')
+                            or attribute_dict.get('payment_card_barcode'))
+
+    location = attribute_dict.get('location')  # address location
+
+    # Yes, we know "GPS" refers to a technology, but "gps_location" is less ambiguous for end users than "geo_location"
+    gps_location = attribute_dict.get('gps_location')  # geo location as str of lat, lng
+
+    use_precreated_pin = attribute_dict.get('use_precreated_pin')
+    use_last_4_digits_of_id_as_initial_pin = attribute_dict.get(
+        'use_last_4_digits_of_id_as_initial_pin')
+
+    transfer_account_name = attribute_dict.get('transfer_account_name')
+    first_name = attribute_dict.get('first_name')
+    last_name = attribute_dict.get('last_name')
+
+    business_usage_name = attribute_dict.get('business_usage_name')
+    business_usage_id = None
+    if business_usage_name:
+        usage = TransferUsage.find_or_create(business_usage_name)
+        business_usage_id = usage.id
+
+    preferred_language = attribute_dict.get('preferred_language')
+
+    primary_user_identifier = attribute_dict.get('primary_user_identifier')
+    primary_user_pin = attribute_dict.get('primary_user_pin')
+
+    initial_disbursement = attribute_dict.get('initial_disbursement', None)
+    if not account_types:
+        account_types = ['beneficiary']
+    roles_to_set = []
+    for at in account_types:
+        if at not in g.active_organisation.valid_roles:
+            raise Exception(f'{at} not a valid role for this organisation. Please choose one of the following: {g.active_organisation.valid_roles}')
+        roles_to_set.append((ASSIGNABLE_TIERS[at], at))
+
+    chain = get_chain()
+    if current_app.config['CHAINS'][chain]['IS_USING_BITCOIN']:
+        try:
+            base58.b58decode_check(blockchain_address)
+        except ValueError:
+            response_object = {
+                'message': 'Blockchain Address {} Not Valid'.format(blockchain_address)}
+            return response_object, 400
+
+    if isinstance(phone, bool):
+        phone = None
+
+    if phone and not is_self_sign_up:
+        # phone has already been parsed if self sign up
+        try:
+            phone = proccess_phone_number(phone)
+        except NumberParseException as e:
+            response_object = {'message': 'Invalid Phone Number: ' + str(e)}
+            return response_object, 400
+
+    # Work out if there's an existing transfer account to bind to
+    existing_transfer_account = None
+    if primary_user_identifier:
+        primary_user, _ = find_user_from_public_identifier(
+            primary_user_identifier)
+        if not primary_user or not primary_user.verify_password(primary_user_pin):
+            response_object = {'message': 'Primary User not Found'}
+            return response_object, 400
+
+        if not primary_user.verify_password(primary_user_pin):
+            response_object = {'message': 'Invalid PIN for Primary User'}
+            return response_object, 400
+
+        primary_user_transfer_account = primary_user.transfer_account
+
+        if not primary_user_transfer_account:
+            response_object = {
+                'message': 'Primary User has no transfer account'}
+            return response_object, 400
+
+    if not (phone or email or public_serial_number or blockchain_address or user_id or uuid or not require_identifier):
+        response_object = {'message': 'Must provide a unique identifier'}
+        return response_object, 400
+
+    if use_precreated_pin and not public_serial_number:
+        response_object = {
+            'message': 'Must provide public serial number to use a transfer card or pre-created pin'
+        }
+        return response_object, 400
+
+    if public_serial_number:
+        public_serial_number = str(public_serial_number)
+
+        if use_precreated_pin or require_transfer_card_exists:
+            transfer_card = TransferCard.query.filter_by(
+                public_serial_number=public_serial_number).first()
+
+            if not transfer_card:
+                response_object = {'message': 'Transfer card not found'}
+                return response_object, 400
+
+    business_usage = None
+    if business_usage_id:
+        business_usage = TransferUsage.query.get(business_usage_id)
+        if not business_usage:
+            response_object = {
+                'message': f'Business Usage not found for id {business_usage_id}'
+            }
+            return response_object, 400
+
+    referred_by_user, _ = find_user_from_public_identifier(referred_by)
+
+    if referred_by and not referred_by_user:
+        response_object = {
+            'message': f'Referrer user not found for public identifier {referred_by}'
+        }
+        return response_object, 400
+
+    existing_user, _ = find_user_from_public_identifier(
+        email, phone, public_serial_number, blockchain_address, uuid)
+
+    if not existing_user and user_id:
+        existing_user = User.query.get(user_id)
+
+    if modify_only and existing_user is None:
+        response_object = {'message': 'User not found'}
+        return response_object, 404
+
+    if existing_user:
+        if not allow_existing_user_modify:
+            response_object = {'message': 'User already exists for Identifier'}
+            return response_object, 400
+
+        if user_id is not None and (existing_user.id != user_id) and existing_user.phone == phone:
+            response_object = {'message': f'User already exists for phone {existing_user}'}
+            return response_object, 400
+
+        try:
+
+            user = update_transfer_account_user(
+                existing_user,
+                first_name=first_name,
+                last_name=last_name,
+                preferred_language=preferred_language,
+                phone=phone,
+                email=email,
+                public_serial_number=public_serial_number,
+                use_precreated_pin=use_precreated_pin,
+                existing_transfer_account=existing_transfer_account,
+                roles=roles_to_set,
+                business_usage=business_usage
+            )
+
+            set_location_conditionally(user, location, gps_location)
+
+            if referred_by_user:
+                user.referred_by.clear()  # otherwise prior referrals will remain...
+                user.referred_by.append(referred_by_user)
+
+            set_custom_attributes(attribute_dict, user)
+            flag_modified(user, "custom_attributes")
+
+            db.session.commit()
+
+            response_object = {
+                'message': 'User Updated',
+                'data': {'user': user_schema.dump(user).data}
+            }
+
+            return response_object, 200
+
+        except Exception as e:
+            response_object = {
+                'message': str(e)
+            }
+
+            return response_object, 400
+
+    user = create_transfer_account_user(
+        first_name=first_name, last_name=last_name, preferred_language=preferred_language,
+        phone=phone, email=email, public_serial_number=public_serial_number, uuid=uuid,
+        organisation=organisation if organisation else g.active_organisation,
+        blockchain_address=blockchain_address,
+        transfer_account_name=transfer_account_name,
+        use_precreated_pin=use_precreated_pin,
+        use_last_4_digits_of_id_as_initial_pin=use_last_4_digits_of_id_as_initial_pin,
+        existing_transfer_account=existing_transfer_account,
+        roles=roles_to_set,
+        is_self_sign_up=is_self_sign_up,
+        business_usage=business_usage, initial_disbursement=initial_disbursement)
+
+    set_location_conditionally(user, location, gps_location)
