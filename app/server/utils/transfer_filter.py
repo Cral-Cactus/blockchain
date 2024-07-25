@@ -195,19 +195,6 @@ def process_transfer_filters(encoded_filters):
 
     filter_dict = {}
 
-    for f in filter_list:
-
-        unprocessed_attribute = f['attribute']
-        table = filters.ALL_FILTERS[unprocessed_attribute]['table']
-        sender_or_recipient = filters.ALL_FILTERS[unprocessed_attribute]['sender_or_recipient'] if 'sender_or_recipient' in filters.ALL_FILTERS[unprocessed_attribute] else False
-
-        processed = handle_filter(**f)
-        if (table, sender_or_recipient) not in filter_dict:
-            filter_dict[(table, sender_or_recipient)] = []
-        filter_dict[(table, sender_or_recipient)].append(processed)
-
-    return filter_dict
-
 
 def parse_filter_string(filter_string):
     """
@@ -234,34 +221,3 @@ def parse_filter_string(filter_string):
                 'value': value
             })
     return filters
-
-
-def handle_filter(attribute, comparator, value):
-    filters = Filters()
-    attribute_type = filters.ALL_FILTERS[attribute]['type']
-    if attribute_type == TransferFilterEnum.BOOLEAN_MAPPING:
-        return handle_boolean_mapping(attribute, comparator, value)
-
-    elif attribute_type == TransferFilterEnum.DISCRETE:
-        return handle_discrete(attribute, comparator, value)
-    else:
-        return handle_other_types(attribute, comparator, value, attribute_type)
-
-
-def handle_boolean_mapping(attribute, comparator, value):
-
-    filters = []
-    for v in value:
-        attribute = BOOLEAN_MAPPINGS[v]
-        filters.append((attribute, "EQ", True))
-
-    return filters
-
-
-def handle_discrete(attribute, comparator, value):
-    return [(attribute, "EQ", value)]
-
-
-def handle_other_types(attribute, comparator, value, attribute_type):
-    value = value if attribute_type == TransferFilterEnum.DATE_RANGE else float(value)
-    return [(attribute, comparator, value)]

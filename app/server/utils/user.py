@@ -637,21 +637,6 @@ def send_terms_message_if_required(user):
         user.seen_latest_terms = True
 
 
-def send_onboarding_message(to_phone, first_name, amount, currency_name, one_time_code):
-    if to_phone:
-        receiver_message = '{}, you have been registered for {}. You have {} {}. Your one-time code is {}. ' \
-                           'Download Sempo for Android: https://bit.ly/2UVZLqf' \
-            .format(
-            first_name,
-            current_app.config['PROGRAM_NAME'],
-            amount if not None else 0,
-            currency_name,
-            one_time_code,
-        )
-
-        send_message(to_phone, receiver_message)
-
-
 def send_phone_verification_message(to_phone, one_time_code):
     if to_phone:
         send_translated_message(phone=to_phone, message_key='verification_code', code=one_time_code)
