@@ -201,7 +201,7 @@ def make_payment_transfer(
         transfer_card_state=None
 ):
     """
-    This is used for internal transfers between Sempo wallets.
+    This is used for internal transfers between stengo wallets.
     :param transfer_amount:
     :param token:
     :param send_user:
@@ -309,7 +309,7 @@ def make_deposit_transfer(transfer_amount,
                           uuid=None,
                           fiat_ramp=None):
     """
-    This is used for a user depositing funds to their Sempo wallet. Only interacts with Sempo float.
+    This is used for a user depositing funds to their stengo wallet. Only interacts with stengo float.
     :param transfer_amount:
     :param token:
     :param receive_account:
@@ -432,45 +432,3 @@ def check_for_any_valid_hash(transfer_amount, transfer_account_id, user_secret, 
         t_forward += time_interval
 
     return False
-
-
-def check_hash(hash_to_check, transfer_amount, transfer_account_id, user_secret, unix_time, time_interval):
-    hash_size = 6
-
-    intervaled_time = int((unix_time - (unix_time % (time_interval * 1000))) / (time_interval * 1000))
-
-    hmac_message = str(transfer_amount) + str(transfer_account_id) + str(intervaled_time)
-
-    full_hmac_string = hmac.new(
-        user_secret.encode(),
-        hmac_message.encode(),
-        hashlib.sha256
-    ).hexdigest()
-
-    truncated_hmac_string = full_hmac_string[0: hash_size]
-    valid_hmac = truncated_hmac_string == hash_to_check
-    return truncated_hmac_string == hash_to_check
-
-def _check_recent_transaction_sync_status(interval_time, time_to_error):
-    start_time = datetime.utcnow() - timedelta(seconds = interval_time) - timedelta(seconds = time_to_error)
-    end_time = datetime.utcnow() - timedelta(seconds = time_to_error)
-
-    transactions_in_window = CreditTransfer.query\
-        .filter(CreditTransfer.updated >= start_time, CreditTransfer.updated <= end_time)\
-        .execution_options(show_all=True)
-    
-    failed_transactions = transactions_in_window\
-        .filter(CreditTransfer.received_third_party_sync == False)\
-        .filter(CreditTransfer.blockchain_status == BlockchainStatus.SUCCESS)\
-        .all()
-    
-    if failed_transactions:
-        raise Exception(f'Warning! The following transactions were successfully completed, but did not appear in third party sync: {failed_transactions}')
-    
-    return failed_transactions
-    
-def check_recent_transaction_sync_status(interval_time, time_to_error):
-    from server import create_app
-    app = create_app(skip_create_filters=True)
-    with app.app_context():
-        _check_recent_transaction_sync_status(interval_time, time_to_error)
