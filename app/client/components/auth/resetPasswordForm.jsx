@@ -158,37 +158,3 @@ const ResetPasswordForm = function(props) {
         >
           <Input.Password placeholder={"Retype Password"} type={"password"} />
         </Form.Item>
-
-        <Form.Item>
-          <Button
-            htmlType="submit"
-            loading={props.isLoading}
-            label={"Change Password"}
-            type={"primary"}
-            block
-          >
-            Change Password
-          </Button>
-        </Form.Item>
-      </Form>
-    </div>
-  );
-};
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(ResetPasswordFormContainer);
-
-const Text = styled.p`
-  margin: 0.5em;
-  text-align: center;
-`;
-
-const StyledLink = styled(NavLink)`
-  color: #30a4a6;
-  font-weight: bolder;
-  &:hover {
-    text-decoration: underline;
-  }
-`;
