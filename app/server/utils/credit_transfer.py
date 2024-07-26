@@ -301,46 +301,176 @@ def make_payment_transfer(
 
     return transfer
 
-
-def make_withdrawal_transfer(transfer_amount,
-                             token,
-                             send_user=None,
-                             sender_transfer_account=None,
-                             transfer_mode=None,
-                             require_sender_approved=True,
-                             require_sufficient_balance=True,
-                             automatically_resolve_complete=True,
-                             uuid=None):
+def make_deposit_transfer(transfer_amount,
+                          token,
+                          receive_account,
+                          transfer_mode=None,
+                          automatically_resolve_complete=True,
+                          uuid=None,
+                          fiat_ramp=None):
     """
-    This is used for a user withdrawing funds from their Sempo wallet. Only interacts with Sempo float.
+    This is used for a user depositing funds to their Sempo wallet. Only interacts with Sempo float.
     :param transfer_amount:
     :param token:
-    :param send_account:
+    :param receive_account:
     :param transfer_mode:
-    :param require_sender_approved:
-    :param require_sufficient_balance:
     :param automatically_resolve_complete:
     :param uuid:
+    :param fiat_ramp: A FiatRamp Object to tie to credit transfer
     :return:
     """
 
-    transfer = CreditTransfer(
-        transfer_amount,
-        token,
-        sender_user=send_user,
-        sender_transfer_account=sender_transfer_account,
-        uuid=uuid,
-        transfer_type=TransferTypeEnum.WITHDRAWAL,
-        transfer_mode=transfer_mode,
-        require_sufficient_balance=require_sufficient_balance
-    )
-
-    if require_sender_approved and not transfer.check_sender_is_approved():
-        message = "Sender {} is not approved".format(sender_transfer_account)
-        transfer.resolve_as_rejected(message)
-        raise AccountNotApprovedError(message, is_sender=True)
+    transfer = CreditTransfer(amount=transfer_amount,
+                              token=token,
+                              recipient_user=receive_account,
+                              transfer_type=TransferTypeEnum.DEPOSIT, transfer_mode=transfer_mode,
+                              uuid=uuid,
+                              fiat_ramp=fiat_ramp,
+                              require_sufficient_balance=False)
 
     if automatically_resolve_complete:
         transfer.resolve_as_complete_and_trigger_blockchain()
 
     return transfer
+
+
+def make_target_balance_transfer(target_balance,
+                                 target_user,
+                                 transfer_mode=None,
+                                 require_target_user_approved=True,
+                                 require_sufficient_balance=True,
+                                 automatically_resolve_complete=True,
+                                 uuid=None,
+                                 queue='high-priority'):
+    if target_balance is None:
+        raise InvalidTargetBalanceError("Target balance not provided")
+
+    if target_user.transfer_account is None:
+        raise TransferAccountNotFoundError('Transfer account not found')
+
+    transfer_amount = Decimal(target_balance) - target_user.transfer_account.balance
+
+    if transfer_amount == 0:
+        raise InvalidTargetBalanceError("Transfer Amount can't be zero")
+
+    if transfer_amount < 0:
+        transfer = make_payment_transfer(abs(transfer_amount),
+                                         target_user.transfer_account.token,
+                                         send_user=target_user,
+                                         transfer_mode=transfer_mode,
+                                         require_sender_approved=require_target_user_approved,
+                                         require_recipient_approved=False,
+                                         require_sufficient_balance=require_sufficient_balance,
+                                         automatically_resolve_complete=automatically_resolve_complete,
+                                         uuid=uuid,
+                                         transfer_subtype=TransferSubTypeEnum.RECLAMATION,
+                                         queue=queue)
+
+    else:
+        transfer = make_payment_transfer(transfer_amount,
+                                         target_user.transfer_account.token,
+                                         receive_user=target_user,
+                                         transfer_mode=transfer_mode,
+                                         automatically_resolve_complete=automatically_resolve_complete,
+                                         uuid=uuid,
+                                         transfer_subtype=TransferSubTypeEnum.DISBURSEMENT,
+                                         queue=queue)
+
+    return transfer
+
+
+def transfer_credit_via_phone(send_phone, receive_phone, transfer_amount):
+
+    transfer_amount = abs(transfer_amount)
+
+    send_user = User.query.filter_by(phone=send_phone).first()
+    if send_user is None:
+        return {'status': 'Fail', 'message': "Can't send from phone number: " + send_phone}
+
+    receive_user = User.query.filter_by(phone=receive_phone).first()
+    if receive_user is None:
+        return {'status': 'Fail', 'message': "Can't send to phone number: " + send_phone}
+
+    if send_user.transfer_account.balance < transfer_amount:
+        return {'status': 'Fail', 'message': "Insufficient Funds"}
+
+    transfer = make_payment_transfer(transfer_amount, send_user, receive_user, transfer_mode=TransferModeEnum.SMS)
+
+    return {
+        'status': 'Success',
+        'message': "Transfer Successful",
+        'transfer_data': transfer
+    }
+
+
+def check_for_any_valid_hash(transfer_amount, transfer_account_id, user_secret, hash_to_check):
+    time_interval = 5
+    time_tolerance = 30
+
+    current_unix_time = int(time.time() * 1000)
+
+    t_backward = 0
+    while t_backward <= time_tolerance:
+        unix_time_to_check = current_unix_time - t_backward * 1000
+
+        valid = check_hash(hash_to_check, transfer_amount, transfer_account_id, user_secret, unix_time_to_check, time_interval)
+
+        if valid:
+            return True
+
+        t_backward += time_interval
+
+    t_forward = 0
+    while t_forward <= time_tolerance:
+        unix_time_to_check = current_unix_time + t_forward * 1000
+
+        valid = check_hash(hash_to_check, transfer_amount, transfer_account_id, user_secret, unix_time_to_check, time_interval)
+
+        if valid:
+            return True
+
+        t_forward += time_interval
+
+    return False
+
+
+def check_hash(hash_to_check, transfer_amount, transfer_account_id, user_secret, unix_time, time_interval):
+    hash_size = 6
+
+    intervaled_time = int((unix_time - (unix_time % (time_interval * 1000))) / (time_interval * 1000))
+
+    hmac_message = str(transfer_amount) + str(transfer_account_id) + str(intervaled_time)
+
+    full_hmac_string = hmac.new(
+        user_secret.encode(),
+        hmac_message.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+    truncated_hmac_string = full_hmac_string[0: hash_size]
+    valid_hmac = truncated_hmac_string == hash_to_check
+    return truncated_hmac_string == hash_to_check
+
+def _check_recent_transaction_sync_status(interval_time, time_to_error):
+    start_time = datetime.utcnow() - timedelta(seconds = interval_time) - timedelta(seconds = time_to_error)
+    end_time = datetime.utcnow() - timedelta(seconds = time_to_error)
+
+    transactions_in_window = CreditTransfer.query\
+        .filter(CreditTransfer.updated >= start_time, CreditTransfer.updated <= end_time)\
+        .execution_options(show_all=True)
+    
+    failed_transactions = transactions_in_window\
+        .filter(CreditTransfer.received_third_party_sync == False)\
+        .filter(CreditTransfer.blockchain_status == BlockchainStatus.SUCCESS)\
+        .all()
+    
+    if failed_transactions:
+        raise Exception(f'Warning! The following transactions were successfully completed, but did not appear in third party sync: {failed_transactions}')
+    
+    return failed_transactions
+    
+def check_recent_transaction_sync_status(interval_time, time_to_error):
+    from server import create_app
+    app = create_app(skip_create_filters=True)
+    with app.app_context():
+        _check_recent_transaction_sync_status(interval_time, time_to_error)
