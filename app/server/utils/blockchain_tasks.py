@@ -250,46 +250,146 @@ class BlockchainTasker(object):
 
         path = self._get_path(from_token, to_token, reserve_token)
 
-        return self._transaction_task(
-            signing_address=signing_address,
-            contract_address=exchange_contract.blockchain_address,
-            contract_type='bancor_converter',
-            func='quickConvert',
-            args=[
-                path,
-                from_token.system_amount_to_token(from_amount),
-                1
-            ],
-            prior_tasks=prior_tasks,
-            task_uuid=task_uuid
+           if (not from_is_reserve) and (not to_is_reserve):
+
+            (from_token_supply,
+             from_subexchange_reserve,
+             from_subexchange_reserve_ratio_ppm) = get_token_exchange_details(from_token)
+
+            (to_token_supply,
+             to_subexchange_reserve,
+             to_subexchange_reserve_ratio_ppm) = get_token_exchange_details(to_token)
+
+            to_amount = bonding_curve_token1_to_token2(from_token_supply, to_token_supply,
+                                                       from_subexchange_reserve, to_subexchange_reserve,
+                                                       from_subexchange_reserve_ratio_ppm,
+                                                       to_subexchange_reserve_ratio_ppm,
+                                                       raw_from_amount)
+
+        elif not from_is_reserve:
+            (from_token_supply,
+             from_subexchange_reserve,
+             from_subexchange_reserve_ratio_ppm) = get_token_exchange_details(from_token)
+
+            to_amount = bonding_curve_tokens_to_reserve(from_token_supply,
+                                                        from_subexchange_reserve,
+                                                        from_subexchange_reserve_ratio_ppm,
+                                                        raw_from_amount)
+
+        else:
+            (to_token_supply,
+             to_subexchange_reserve,
+             to_subexchange_reserve_ratio_ppm) = get_token_exchange_details(to_token)
+
+            to_amount = bonding_curve_reserve_to_tokens(to_token_supply,
+                                                        to_subexchange_reserve,
+                                                        to_subexchange_reserve_ratio_ppm,
+                                                        raw_from_amount)
+
+        to_amount = round(to_amount)
+
+        return to_token.token_amount_to_system(to_amount)
+
+    def _get_path(self, from_token, to_token, reserve_token):
+
+        if from_token == reserve_token:
+            return[
+                reserve_token.address,
+                to_token.address,
+                to_token.address
+            ]
+
+        elif to_token == reserve_token:
+            return [
+                from_token.address,
+                from_token.address,
+                reserve_token.address,
+            ]
+
+        else:
+            return [
+                from_token.address,
+                from_token.address,
+                reserve_token.address,
+                to_token.address,
+                to_token.address
+            ]
+
+    def get_token_decimals(self, token, queue='high-priority'):
+        return self._synchronous_call(
+            contract_address=token.address,
+            contract_type='ERC20',
+            func='decimals',
+            queue=queue
         )
 
-            def get_conversion_amount(self, exchange_contract, from_token, to_token, from_amount, signing_address=None):
+    def get_wallet_balance(self, address, token, queue='high-priority'):
 
-        def get_token_exchange_details(token):
-            subexchange_details = exchange_contract.get_subexchange_details(token.address)
-            subexchange_address = subexchange_details['subexchange_address']
+        balance_wei = self._synchronous_call(
+            contract_address=token.address,
+            contract_type='ERC20',
+            func='balanceOf',
+            args=[address],
+            queue=queue)
 
-            token_supply = self._synchronous_call(
-                contract_address=token.address,
-                contract_type='ERC20',
-                func='totalSupply'
-            )
+        return balance_wei
 
-            subexchange_reserve = self._synchronous_call(
-                contract_address=reserve_token.address,
-                contract_type='ERC20',
-                func='balanceOf',
-                args=[subexchange_address]
-            )
+    def get_allowance(self, token, owner_address, spender_address):
 
-            subexchange_reserve_ratio_ppm = subexchange_details['subexchange_reserve_ratio_ppm']
+        allowance_wei = self._synchronous_call(
+            contract_address=token.address,
+            contract_type='ERC20',
+            func='allowance',
+            args=[owner_address, spender_address])
 
-            return token_supply, subexchange_reserve, subexchange_reserve_ratio_ppm
+        return allowance_wei
 
-        raw_from_amount = from_token.system_amount_to_token(from_amount)
+    def deploy_exchange_network(self, deploying_address):
+        """
+        Deploys the underlying set of contracts required to set up a network of exchanges
+        :param deploying_address: The address of the wallet used to deploy the network
+        :return: registry contract address
+        """
+        return self._execute_synchronous_celery(
+            self._eth_endpoint('deploy_exchange_network'),
+            args=[deploying_address],
+            timeout=current_app.config['CHAINS'][get_chain()]['SYNCRONOUS_TASK_TIMEOUT'] * 25
+        )
 
-        reserve_token = exchange_contract.reserve_token
+    def deploy_and_fund_reserve_token(self, deploying_address, name, symbol, fund_amount_wei):
+        args = [deploying_address, name, symbol, fund_amount_wei]
+        return self._execute_synchronous_celery(
+            self._eth_endpoint('deploy_and_fund_reserve_token'),
+            args=args,
+            timeout=current_app.config['CHAINS'][get_chain()]['SYNCRONOUS_TASK_TIMEOUT'] * 20
+        )
 
-        from_is_reserve = from_token == reserve_token
-        to_is_reserve = to_token == reserve_token
+    def deploy_smart_token(self,
+                           deploying_address,
+                           name, symbol, decimals,
+                           reserve_deposit_wei,
+                           issue_amount_wei,
+                           contract_registry_address,
+                           reserve_token_address,
+                           reserve_ratio_ppm):
+
+        args=[deploying_address,
+              name, symbol, decimals,
+              int(reserve_deposit_wei),
+              int(issue_amount_wei),
+              contract_registry_address,
+              reserve_token_address,
+              int(reserve_ratio_ppm)]
+
+        return self._execute_synchronous_celery(
+            self._eth_endpoint('deploy_smart_token'),
+            args=args,
+            timeout=current_app.config['CHAINS'][get_chain()]['SYNCRONOUS_TASK_TIMEOUT'] * 15
+        )
+
+    def topup_wallet_if_required(self, wallet_address, queue='high-priority'):
+        return self._execute_synchronous_celery(
+            self._eth_endpoint('topup_wallet_if_required'),
+            args=[wallet_address],
+            queue=queue
+        )
