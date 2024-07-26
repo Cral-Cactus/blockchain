@@ -219,36 +219,3 @@ class AdminUserList extends React.Component {
             </Card>
           );
         }
-    
-        if (
-          this.props.login.adminTier === "view" ||
-          this.props.login.adminTier === "subadmin"
-        ) {
-          return (
-            <div
-              style={{
-                justifyContent: "center",
-                display: "flex",
-                padding: "10vh 10vw",
-              }}
-            >
-              <p>You don't have access to admin list.</p>
-            </div>
-          );
-        }
-    
-        return (
-          <div
-            style={{
-              justifyContent: "center",
-              display: "flex",
-              padding: "10vh 10vw",
-            }}
-          >
-            <p>Something went wrong.</p>
-          </div>
-        );
-      }
-    }
-    
-    export default connect(mapStateToProps, mapDispatchToProps)(AdminUserList);
