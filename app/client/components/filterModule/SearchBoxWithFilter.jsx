@@ -219,69 +219,208 @@ class SearchBoxWithFilter extends React.Component {
     }, []);
   };
 
-  render() {
-    const { phrase, filters, filterActive, saveFilterDropdown } = this.state;
+  <SavedFilters
+  style={{
+    display: this.state.saveFilterDropdown ? "block" : "none"
+  }}
+>
+  <ThresholdInput
+    name="filterName"
+    value={this.state.filterName}
+    placeholder="Filter name..."
+    onChange={this.handleChange}
+    aria-label="Filter name"
+  />
+  <FilterText
+    onClick={this.saveFilter}
+    style={{ padding: "0 0 5px 10px" }}
+  >
+    Save Filter
+  </FilterText>
+</SavedFilters>
+</div>
+);
+} else if (filterActive) {
+savedFilters = (
+<div style={{ margin: "0 1em", display: "flex", position: "relative" }}>
+<ModuleBox
+  style={{ margin: 0, padding: 0, fontSize: "0.8em" }}
+  onClick={this.loadFilters}
+>
+  <SavedFilterButton>
+    <SVG
+      style={{ padding: "0 5px 0 0" }}
+      src="/static/media/save.svg"
+      alt={"View saved filters"}
+    />
+    View Saved Filters
+  </SavedFilterButton>
+</ModuleBox>
+<SavedFilters
+  style={{
+    display: this.state.loadFiltersDropdown ? "block" : "none"
+  }}
+>
+  {filterList}
+</SavedFilters>
+<CloseWrapper
+  onClick={() =>
+    this.setState({
+      loadFiltersDropdown: !this.state.loadFiltersDropdown
+    })
+  }
+  style={{ display: this.state.loadFiltersDropdown ? "" : "none" }}
+/>
+</div>
+);
+}
 
-    var item_list = this.props.item_list;
+return (
+<div>
+{this.props.withSearch ? (
+<ModuleBox>
+  <SearchWrapper>
+    <svg
+      style={{
+        width: 18,
+        height: 18,
+        paddingTop: 10,
+        paddingRight: 10,
+        paddingBottom: 10,
+        paddingLeft: 10
+      }}
+      height="16"
+      viewBox="0 0 16 16"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M12.6 11.2c.037.028.073.059.107.093l3 3a1 1 0 1 1-1.414 1.414l-3-3a1.009 1.009 0 0 1-.093-.107 7 7 0 1 1 1.4-1.4zM7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10z"
+        fillRule="evenodd"
+        fill="#6a7680"
+      />
+    </svg>
+    <SearchInput
+      name="phrase"
+      value={phrase}
+      placeholder="Search..."
+      onChange={this.handleChange}
+      aria-label="Search"
+    />
 
-    // Phrase Search
-    if (phrase !== "") {
-      item_list = matchSorter(item_list, this.state.phrase, {
-        keys: this.props.searchKeys
-      });
-    }
+    <FilterWrapper onClick={this.toggleFilter}>
+      <FilterText>
+        {filterActive ? "Cancel" : this.props.toggleTitle}
+      </FilterText>
+      <svg
+        style={{
+          width: 12,
+          height: 12,
+          padding: "0 10px",
+          transform: filterActive ? "rotate(45deg)" : null,
+          transition: "all .15s ease"
+        }}
+        height="16"
+        viewBox="0 0 16 16"
+        width="16"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M9 7h6a1 1 0 0 1 0 2H9v6a1 1 0 0 1-2 0V9H1a1 1 0 1 1 0-2h6V1a1 1 0 1 1 2 0z"
+          fillRule="evenodd"
+          fill="#6a7680"
+        />
+      </svg>
+    </FilterWrapper>
+  </SearchWrapper>
+</ModuleBox>
+) : (
+<ModuleBox>
+  <FilterWrapper onClick={this.toggleFilter}>
+    <FilterText>
+      {filterActive ? "Cancel" : this.props.toggleTitle}
+    </FilterText>
+    <svg
+      style={{
+        width: 12,
+        height: 12,
+        padding: "0 10px",
+        transform: filterActive ? "rotate(45deg)" : null,
+        transition: "all .15s ease"
+      }}
+      height="16"
+      viewBox="0 0 16 16"
+      width="16"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M9 7h6a1 1 0 0 1 0 2H9v6a1 1 0 0 1-2 0V9H1a1 1 0 1 1 0-2h6V1a1 1 0 1 1 2 0z"
+        fillRule="evenodd"
+        fill="#6a7680"
+      />
+    </svg>
+  </FilterWrapper>
+</ModuleBox>
+)}
 
-    if (filters.length > 0 && item_list.length > 0) {
-      this.state.filters.map(filter => {
-        item_list = this.applyFilter(item_list, filter);
-      });
-    }
+{savedFilters}
+{filterActive && (
+<Filter
+  possibleFilters={this.state.possibleFilters}
+  onFiltersChanged={this.onFiltersChanged}
+/>
+)}
 
-    if (this.props.filters.loadStatus.isRequesting) {
-      var filterList = (
-        <div style={{ padding: "1em" }}>
-          <LoadingSpinner />
-        </div>
-      );
-    } else if (this.props.filters.loadStatus.success) {
-      let filterListKeys = Object.keys(this.props.filters.byId)
-        .filter(id => typeof this.props.filters.byId[id] !== "undefined")
-        .map(id => this.props.filters.byId[id]);
-      filterList = filterListKeys.map((filter, index) => {
-        return (
-          <CheckboxLabel
-            name={filter.id}
-            key={index}
-            onClick={() => this.loadSavedFilter(filter.id)}
-          >
-            {filter.name}
-          </CheckboxLabel>
-        );
-      });
-    } else {
-      filterList = null;
-    }
+<div>
+{React.cloneElement(this.props.children, { item_list: item_list })}
+</div>
+</div>
+);
+}
+}
 
-    if (filterActive && filters.length !== 0) {
-      var savedFilters = (
-        <div style={{ margin: "0 1em", position: "relative" }}>
-          <ModuleBox
-            style={{
-              margin: 0,
-              padding: 0,
-              fontSize: "0.8em",
-              width: "fit-content"
-            }}
-            onClick={this.saveFilterDropdown}
-          >
-            <SavedFilterButton>
-              {saveFilterDropdown ? null : (
-                <SVG
-                  style={{ padding: "0 5px 0 0" }}
-                  src="/static/media/save.svg"
-                  alt={"Save filter titled: " + this.state.filterName}
-                />
-              )}
-              {saveFilterDropdown ? "Cancel" : "Save Filter"}
-            </SavedFilterButton>
-          </ModuleBox>
+(SearchBoxWithFilter.defaultProps = defaultProps),
+(SearchBoxWithFilter.propTypes = propTypes);
+
+export default connect(
+mapStateToProps,
+mapDispatchToProps
+)(SearchBoxWithFilter);
+
+const SearchWrapper = styled.div`
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+`;
+
+const SearchInput = styled.input`
+margin: 2px 0 0 -40px;
+border: solid #fff;
+border-width: 0 0 2px 0;
+padding: 1em 1em 1em 40px;
+width: 100%;
+outline: none;
+background: transparent;
+&:focus {
+border-color: #2d9ea0;
+}
+`;
+
+const FilterText = styled.p`
+margin: 0;
+font: 400 11px system-ui;
+color: #777;
+padding: 0 0 0 10px;
+`;
+
+const FilterWrapper = styled.div`
+display: flex;
+flex-direction: row;
+height: 39px;
+align-items: center;
+border-left: solid 1px #e8e8ea;
+&:hover {
+background-color: #f7fafc;
+}
+`;
