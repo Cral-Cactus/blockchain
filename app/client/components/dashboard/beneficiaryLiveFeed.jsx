@@ -368,45 +368,4 @@ const ClickableTopText = styled.span`
 const NonClickableTopText = styled(ClickableTopText)`
   font-weight: 300;
   cursor: auto;
-`;
-
-const BottomText = styled.div`
-  margin: 0px;
-  font-size: 15px;
-  font-weight: 300;
-`;
-
-const DarkHighlight = styled.h5`
-  color: #4a4a4a;
-  display: inline;
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
-const ClickableHighlight = styled.h5`
-  color: #edcba2;
-  display: inline;
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-`;
-
-const UserTime = styled.div`
-  font-size: 12px;
-  display: flex;
-  flex-direction: column;
-  margin-top: auto;
-  margin-bottom: auto;
-  margin-left: auto;
-`;
-
-const Status = styled.div`
-  display: flex;
-  justify-content: flex-end;
-`;
+`
