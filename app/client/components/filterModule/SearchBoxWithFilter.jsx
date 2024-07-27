@@ -379,48 +379,67 @@ return (
 }
 }
 
-(SearchBoxWithFilter.defaultProps = defaultProps),
-(SearchBoxWithFilter.propTypes = propTypes);
-
-export default connect(
-mapStateToProps,
-mapDispatchToProps
-)(SearchBoxWithFilter);
-
-const SearchWrapper = styled.div`
-display: flex;
-flex-direction: row;
-justify-content: center;
-align-items: center;
+const ThresholdInput = styled(Input)`
+  font: 400 12px system-ui;
+  border-radius: 5px;
+  height: 12px;
 `;
 
-const SearchInput = styled.input`
-margin: 2px 0 0 -40px;
-border: solid #fff;
-border-width: 0 0 2px 0;
-padding: 1em 1em 1em 40px;
-width: 100%;
-outline: none;
-background: transparent;
-&:focus {
-border-color: #2d9ea0;
-}
+const SVG = styled.img`
+  width: 12px;
+  padding: 0px 10px;
 `;
 
-const FilterText = styled.p`
-margin: 0;
-font: 400 11px system-ui;
-color: #777;
-padding: 0 0 0 10px;
+const CheckboxLabel = styled.label`
+  border-bottom: 1px solid #eaedef;
+  padding: 5px;
+  font: 400 12px system-ui;
+  color: #777;
+  display: block;
+  &:hover {
+    background-color: #f7fafc;
+  }
+  &::selection {
+    background: none;
+  }
+  &:last-child {
+    border-bottom: none;
+  }
 `;
 
-const FilterWrapper = styled.div`
-display: flex;
-flex-direction: row;
-height: 39px;
-align-items: center;
-border-left: solid 1px #e8e8ea;
-&:hover {
-background-color: #f7fafc;
-}
+const SavedFilterButton = styled.div`
+  align-items: center;
+  display: flex;
+  margin: 0;
+  font: 400 12px system-ui;
+  color: #777;
+  padding: 0.6em;
+  &:hover {
+    background-color: #f7fafc;
+  }
+`;
+
+const SavedFilters = styled.div`
+  display: block;
+  border-radius: 2px;
+  margin-top: 10px;
+  position: absolute;
+  top: 29px;
+  width: 200px;
+  z-index: 55;
+  background-color: rgb(255, 255, 255);
+  width: inherit;
+  /* border-radius: 2px; */
+  box-shadow: 0 0 0 1px rgba(44, 45, 48, 0.15),
+    0 5px 10px rgba(44, 45, 48, 0.12);
+`;
+
+const CloseWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  background-color: transparent;
+  z-index: 54;
+  width: 100vw;
+  height: 100vh;
 `;
