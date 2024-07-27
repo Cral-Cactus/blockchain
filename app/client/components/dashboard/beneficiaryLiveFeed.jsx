@@ -137,45 +137,276 @@ class BeneficiaryLiveFeed extends React.Component {
                 }
 
                 if (
-                  transfer.sender_user !== null &&
-                  typeof transfer.sender_user !== "undefined"
+                  transfer.from_exchange_to_transfer_id !== null &&
+                  typeof transfer.from_exchange_to_transfer_id !== "undefined"
                 ) {
-                  var sender_user = users.byId[transfer.sender_user];
-                  if (typeof sender_user !== "undefined") {
-                    let fName = sender_user.first_name;
-                    let lName = sender_user.last_name;
-                    var sender_user_name =
-                      (fName === null ? "" : fName) +
-                      " " +
-                      (lName === null ? "" : lName);
+                  exchangeToTransfer =
+                    creditTransfers.byId[transfer.from_exchange_to_transfer_id];
+                  const transferAccountId =
+                    exchangeToTransfer.sender_transfer_account_id;
+                  if (transferAccountId) {
+                    const transferAccount =
+                      transferAccounts.byId[transferAccountId];
+                    recipientCurrency =
+                      transferAccount &&
+                      transferAccount.token &&
+                      tokens.byId[transferAccount.token] &&
+                      tokens.byId[transferAccount.token].symbol;
                   }
-                } else if (typeof sender_blockchain_address !== "undefined") {
-                  sender_user_name =
-                    (isSenderVendor
-                      ? "Vendor "
-                      : window.BENEFICIARY_TERM + " ") +
-                    "Address " +
-                    sender_blockchain_address.slice(0, 8) +
-                    "...";
-                } else {
-                  sender_user_name = null;
+                  transferToMoney = formatMoney(
+                    exchangeToTransfer.transfer_amount / 100,
+                    undefined,
+                    undefined,
+                    undefined,
+                    recipientCurrency
+                  );
+                  showExchange = true;
                 }
 
-                let currency;
-                let exchangeToTransfer;
-                let transferToMoney;
-                let recipientCurrency;
-                let showExchange = false;
-
-                const transferAccountId = transfer.sender_transfer_account_id;
-                currency =
-                  transfer.token &&
-                  tokens.byId[transfer.token] &&
-                  tokens.byId[transfer.token].symbol;
-                const transferFromMoney = formatMoney(
-                  transfer.transfer_amount / 100,
-                  undefined,
-                  undefined,
-                  undefined,
-                  currency
+                var statuscolors = {
+                  PENDING: "#cc8ee9",
+                  COMPLETE: "#2d9ea0",
+                  REJECTED: "#ff715b"
+                };
+                var timeStatusBlock = (
+                  <UserTime>
+                    <Status>
+                      <DateTime
+                        created={transfer.created}
+                        useRelativeTime={true}
+                      />
+                    </Status>
+                    <Status
+                      style={{ color: statuscolors[transfer.transfer_status] }}
+                    >
+                      {transfer.transfer_status}
+                    </Status>
+                  </UserTime>
                 );
+
+                if (transfer.transfer_type === "EXCHANGE" && showExchange) {
+                  return (
+                    <UserWrapper
+                      key={transfer.id}
+                      style={{
+                        margin: expanded ? "margin: 2.4em 0" : "margin: 0.8em 0"
+                      }}
+                    >
+                      <UserSVG
+                        src="/static/media/exchange.svg"
+                        alt={"Exchange Icon"}
+                      />
+                      <UserGroup>
+                        <ClickableTopText
+                          onClick={() =>
+                            this.navigateToAccount(transferAccountId)
+                          }
+                        >
+                          {sender_user_name} exchanged
+                        </ClickableTopText>
+                        <BottomText>
+                          <DarkHighlight>{transferFromMoney}</DarkHighlight> for
+                          <DarkHighlight> {transferToMoney}</DarkHighlight>
+                        </BottomText>
+                      </UserGroup>
+                      {timeStatusBlock}
+                    </UserWrapper>
+                  );
+                } else if (transfer.transfer_type === "PAYMENT") {
+                  return (
+                    <UserWrapper key={transfer.id}>
+                      <UserSVG
+                        src="/static/media/transfer.svg"
+                        alt={"Transfer Icon"}
+                      />
+                      <UserGroup>
+                        <TopText>
+                          <ClickableTopText
+                            onClick={() =>
+                              this.navigateToAccount(transferAccountId)
+                            }
+                          >
+                            {sender_user_name}
+                          </ClickableTopText>
+                          paid
+                        </TopText>
+                        <BottomText>
+                          <DarkHighlight>{transferFromMoney}</DarkHighlight> to{" "}
+                          {expanded ? <br /> : <span />}
+                          <ClickableHighlight
+                            style={{ color: expanded ? "#d0a45d" : "#edcba2" }}
+                            onClick={() =>
+                              this.navigateToAccount(
+                                transfer.recipient_transfer_account
+                              )
+                            }
+                          >
+                            {" "}
+                            {recipient_user_name}
+                          </ClickableHighlight>
+                        </BottomText>
+                      </UserGroup>
+                      {timeStatusBlock}
+                    </UserWrapper>
+                  );
+                } else if (transfer.transfer_type === "DISBURSEMENT") {
+                  return (
+                    <UserWrapper key={transfer.id}>
+                      <UserSVG
+                        src="/static/media/disbursement.svg"
+                        alt={"Disbursement Icon"}
+                      />
+                      <UserGroup>
+                        <TopText>
+                          <NonClickableTopText>
+                            {transfer.authorising_user_email}
+                          </NonClickableTopText>{" "}
+                          disbursed
+                        </TopText>
+                        <BottomText>
+                          <DarkHighlight>{transferFromMoney}</DarkHighlight> to
+                          <ClickableHighlight
+                            onClick={() =>
+                              this.navigateToAccount(
+                                transfer.recipient_transfer_account
+                              )
+                            }
+                          >
+                            {" "}
+                            {recipient_user_name}
+                          </ClickableHighlight>
+                        </BottomText>
+                      </UserGroup>
+                      {timeStatusBlock}
+                    </UserWrapper>
+                  );
+                } else if (transfer.transfer_type === "RECLAMATION") {
+                  return (
+                    <UserWrapper key={transfer.id}>
+                      <UserSVG
+                        style={{ transform: "rotate(180deg)" }}
+                        src="/static/media/disbursement.svg"
+                        alt={"Reclamation Icon"}
+                      />
+                      <UserGroup>
+                        <TopText>
+                          <NonClickableTopText>
+                            {transfer.authorising_user_email}
+                          </NonClickableTopText>{" "}
+                          reclaimed
+                        </TopText>
+                        <BottomText>
+                          <DarkHighlight>{transferFromMoney}</DarkHighlight>{" "}
+                          from
+                          <ClickableHighlight
+                            onClick={() =>
+                              this.navigateToAccount(transferAccountId)
+                            }
+                          >
+                            {" "}
+                            {sender_user_name}
+                          </ClickableHighlight>
+                        </BottomText>
+                      </UserGroup>
+                      {timeStatusBlock}
+                    </UserWrapper>
+                  );
+                } else {
+                  <div></div>;
+                }
+              })}
+          </LiveFeed>
+        </Card>
+      );
+    }
+  }
+}
+
+export default connect(
+  mapStateToProps,
+  null
+)(BeneficiaryLiveFeed);
+
+const LiveFeed = styled.div`
+  flex: 1;
+  margin: -24px 0;
+`;
+
+const UserWrapper = styled.div`
+  display: flex;
+  margin: 0.8em 0;
+  justify-content: center;
+`;
+
+const UserSVG = styled.img`
+  margin-left: -0.3em;
+  margin-top: auto;
+  margin-bottom: auto;
+  width: 40px;
+  height: 30px;
+`;
+
+const UserGroup = styled.div`
+  display: inline;
+  margin: 3px 1em;
+`;
+
+const TopText = styled.h5`
+  margin: 0px;
+  font-size: 12px;
+  color: #4a4a4a;
+  font-weight: 300;
+`;
+
+const ClickableTopText = styled.span`
+  margin-right: 3px;
+  color: #2d9ea0;
+  font-weight: 600;
+  cursor: pointer;
+`;
+
+const NonClickableTopText = styled(ClickableTopText)`
+  font-weight: 300;
+  cursor: auto;
+`;
+
+const BottomText = styled.div`
+  margin: 0px;
+  font-size: 15px;
+  font-weight: 300;
+`;
+
+const DarkHighlight = styled.h5`
+  color: #4a4a4a;
+  display: inline;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const ClickableHighlight = styled.h5`
+  color: #edcba2;
+  display: inline;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+`;
+
+const UserTime = styled.div`
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+  margin-bottom: auto;
+  margin-left: auto;
+`;
+
+const Status = styled.div`
+  display: flex;
+  justify-content: flex-end;
+`;
