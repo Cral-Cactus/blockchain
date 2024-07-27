@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from "react";
 import { connect, useSelector } from "react-redux";
-import { sempoObjects } from "../../reducers/rootReducer";
+import { stengoObjects } from "../../reducers/rootReducer";
 import {
   Modal,
   Typography,
@@ -28,7 +28,7 @@ const mapStateToProps = state => {
 const mapDispatchToProps = dispatch => {
   return {
     createWithdrawal: body =>
-      dispatch(apiActions.create(sempoObjects.masterWallet, body))
+      dispatch(apiActions.create(stengoObjects.masterWallet, body))
   };
 };
 
