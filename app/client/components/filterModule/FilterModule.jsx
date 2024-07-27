@@ -165,36 +165,3 @@ class FilterModule extends React.Component {
         </Select>
       </Space>
     );
-
-    return (
-      <FilterContainer isMobile={isMobile}>
-        <Space>
-          <TooltipWrapper
-            label={"Filters:"}
-            prompt={"Filter data by custom attributes"}
-          />
-          <Filter
-            label={"Filter by user:"}
-            possibleFilters={this.props.allowedFilters}
-            onFiltersChanged={this.onFiltersChanged}
-          />
-        </Space>
-        {hideGroupBy ? null : groupByModule}
-      </FilterContainer>
-    );
-  }
-}
-
-const FilterContainer = styled.div`
-  display: flex;
-  flex-direction: ${props => (props.isMobile ? "column" : "row")};
-  align-items: center;
-  margin-bottom: 1em;
-  justify-content: space-between;
-  width: 100%;
-`;
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(withMediaQuery([isMobileQuery])(FilterModule));
