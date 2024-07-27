@@ -97,47 +97,4 @@ class GroupByChart extends React.Component {
               }
             }
           }
-        ],
-        yAxes: [
-          {
-            maxBarThickness: 15,
-            gridLines: {
-              display: true,
-              color: "#F0F3F5"
-            },
-            ticks: {
-              beginAtZero: true,
-              min: 0
-            }
-          }
         ]
-      }
-    };
-
-    var chartData = {
-      labels: aggregateKeys,
-      datasets: [
-        {
-          label: `${toTitleCase(replaceUnderscores(selected))}`,
-          backgroundColor: ChartColors,
-          data: aggregateData
-        }
-      ]
-    };
-    return (
-      <div>
-        <div style={{ height: `${this.props.chartHeight}px` }}>
-          <HorizontalBar
-            data={chartData}
-            height={this.props.chartHeight}
-            options={options}
-          />
-        </div>
-      </div>
-    );
-  }
-}
-export default connect(
-  mapStateToProps,
-  null
-)(GroupByChart);
