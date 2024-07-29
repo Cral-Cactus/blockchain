@@ -60,23 +60,3 @@ class HeatMap extends Component {
       viewport: { ...this.state.viewport, ...viewport }
     });
   }
-
-  render() {
-    const viewport = this.state.viewport;
-    return (
-      <MapGL
-        {...viewport}
-        mapStyle="mapbox://styles/mapbox/dark-v9"
-        onViewportChange={this._onViewportChange.bind(this)}
-        mapboxApiAccessToken={window.MAPBOX_TOKEN}
-      >
-        <DeckGLOverlay viewport={viewport} data={this.props.metrics || []} />
-      </MapGL>
-    );
-  }
-}
-
-export default connect(
-  mapStateToProps,
-  null
-)(HeatMap);
