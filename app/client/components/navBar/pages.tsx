@@ -184,40 +184,6 @@ const Page: React.FunctionComponent<OuterProps> = (props) => {
               : { marginLeft: "200px" }
           }
         >
-          {header && routes !== undefined ? (
-            <Header
-              className="site-layout-background"
-              style={{ padding: 0, height: "auto" }}
-            >
-              <PageHeader
-                className="site-page-header"
-                breadcrumb={{ routes, itemRender }}
-              />
-            </Header>
-          ) : null}
-          <Content style={{ margin: isAntDesign ? "0 16px" : "" }}>
-            <React.Suspense
-              fallback={
-                <CenterLoadingSideBarActive>
-                  <LoadingSpinner />
-                </CenterLoadingSideBarActive>
-              }
-            >
-              {isSettings ? (
-                <SettingsSubMenu activeMenu={location.pathname}>
-                  <Component {...props} />
-                </SettingsSubMenu>
-              ) : (
-                <Component {...props} />
-              )}
-            </React.Suspense>
-          </Content>
-          {footer ? (
-            <Footer style={{ textAlign: "center" }}>stengo ©2017-2022</Footer>
-          ) : null}
-        </Layout>
-      </Layout>
-    </ErrorBoundary>
   );
 };
 export default withMediaQuery([isMobileQuery])(Page);
