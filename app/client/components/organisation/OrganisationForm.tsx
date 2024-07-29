@@ -164,15 +164,21 @@ const NewOrganisationForm = (props: OuterProps) => {
           }
         ]}
       >
+      <Form.Item
+        tooltip="The available account types for this project."
+        name="accountTypes"
+        label="Account Types"
+      >
         <Select
+          mode="multiple"
           showSearch
-          placeholder="Select a country"
+          placeholder="Select account types"
           optionFilterProp="children"
           filterOption={(input, option: any) =>
             option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
           }
         >
-          {isoCountries.map((item, i) => {
+          {roles.map((item, i) => {
             return (
               <Option key={i} value={item}>
                 {item}
@@ -183,30 +189,71 @@ const NewOrganisationForm = (props: OuterProps) => {
       </Form.Item>
 
       <Form.Item
-        tooltip="The default time zone for this project."
-        name="timezone"
-        label="Default Time Zone"
-        required={isNewOrg}
-        rules={[
-          {
-            required: isNewOrg
-          }
-        ]}
+        tooltip="The default disbursement amount for new beneficiaries created in this project"
+        name="defaultDisbursement"
+        label="Default Disbursement"
       >
-        <Select
-          showSearch
-          placeholder="Select a timezone"
-          optionFilterProp="children"
-          filterOption={(input, option: any) =>
-            option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
-          }
-        >
-          {timezones.map((item, i) => {
-            return (
-              <Option key={i} value={item}>
-                {item}
-              </Option>
-            );
-          })}
-        </Select>
+        <Input placeholder="0" suffix={tokenSymbol} type="number" />
       </Form.Item>
+
+      <Form.Item
+        tooltip="The minimum vendor payout withdrawal amount for this project"
+        name="minimumVendorPayoutWithdrawal"
+        label="Minimum Vendor Payout Withdrawal"
+      >
+        <Input placeholder="0" suffix={tokenSymbol} type="number" />
+      </Form.Item>
+
+      <Form.Item
+        tooltip="The distance to automatically load transfer cards onto vendor phones for this project"
+        name="cardShardDistance"
+        label="Automatically Load Cards Within"
+      >
+        <Input placeholder="0" suffix="Km" type="number" />
+      </Form.Item>
+
+      <Form.Item style={{ marginBottom: 0 }}>
+        <Form.Item
+          tooltip="The map latitude"
+          name="lat"
+          label="Map Latitude"
+          style={{ display: "inline-block", width: "calc(50% - 12px)" }}
+        >
+          <Input placeholder="0" suffix="°" type="number" />
+        </Form.Item>
+        <span
+          style={{
+            display: "inline-block",
+            width: "24px",
+            lineHeight: "32px",
+            textAlign: "center"
+          }}
+        />
+        <Form.Item
+          tooltip="The map longitude"
+          name="lng"
+          label="Map Longitude"
+          style={{ display: "inline-block", width: "calc(50% - 12px)" }}
+        >
+          <Input placeholder="0" suffix="°" type="number" />
+        </Form.Item>
+      </Form.Item>
+
+      <Form.Item
+        tooltip="Whether or not to require a transfer card exists when tying a public serial number to beneficiary"
+        valuePropName="checked"
+        name="requireTransferCard"
+        label="Require Transfer Card"
+      >
+        <Switch />
+      </Form.Item>
+      <Form.Item>
+        <Button type="primary" htmlType="submit" loading={loading}>
+          Save
+        </Button>
+      </Form.Item>
+    </Form>
+  );
+};
+
+export default NewOrganisationForm;
