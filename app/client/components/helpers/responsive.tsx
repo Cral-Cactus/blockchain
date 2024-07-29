@@ -28,14 +28,3 @@ export const Default: React.FunctionComponent<Props> = ({
 
 type mediaProps = { [key: string]: boolean }; // --> {isMobile: false}
 type Query = { [key: string]: string }; // --> {isMobile: (max-width:767px)}
-
-export const withMediaQuery = (queries: Query[] = []) => (
-  Component: React.ComponentClass<any> | React.FunctionComponent<any>
-) => (props: any) => {
-  const mediaProps: mediaProps = {};
-  queries.forEach((query: Query) => {
-    let key = Object.keys(query)[0];
-    mediaProps[key] = useMediaQuery({ query: query[key] });
-  });
-  return <Component {...mediaProps} {...props} />;
-};

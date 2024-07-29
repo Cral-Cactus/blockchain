@@ -28,26 +28,3 @@ class HistoryDrawer extends React.Component<Props> {
         email: email,
       };
     });
-
-    return (
-      <Drawer
-        title="Account History"
-        placement="right"
-        visible={this.props.drawerVisible}
-        onClose={this.props.onClose}
-        width={500}
-      >
-        <Timeline>
-          {stringList.map((item, index) => (
-            <Timeline.Item key={index}>
-              {item.item} by <a href={"mailto://" + item.email}>{item.email}</a>{" "}
-              at <DateTime created={item.date} useRelativeTime={false} />
-            </Timeline.Item>
-          ))}
-        </Timeline>
-      </Drawer>
-    );
-  }
-}
-
-export default connect()(HistoryDrawer);
