@@ -61,24 +61,6 @@ declare global {
 class NavBar extends React.Component<Props, State> {
   readonly state = initialState;
 
-  componentDidMount() {
-    let activeOrg = this.props.activeOrganisation;
-    let orgName =
-      (activeOrg && replaceSpaces(activeOrg.name).toLowerCase()) || null;
-    let deploymentName = window.DEPLOYMENT_NAME;
-  }
-
-  imageExists(url: string, callback: (exists: boolean) => any) {
-    var img = new Image();
-    img.onload = function() {
-      callback(true);
-    };
-    img.onerror = function() {
-      callback(false);
-    };
-    img.src = url;
-  }
-
   render() {
     let { loggedIn, pathname, isMobile, collapsed, login } = this.props;
     let { iconURL } = this.state;
@@ -194,20 +176,3 @@ class NavBar extends React.Component<Props, State> {
     }
   }
 }
-
-const mapStateToProps = (state: ReduxState): StateProps => {
-  return {
-    loggedIn: state.login.token != null,
-    login: state.login,
-    email: state.login.email,
-    activeOrganisation:
-      state.organisations.byId[Number(state.login.organisationId)],
-    organisationList: Object.keys(state.organisations.byId).map(
-      id => state.organisations.byId[Number(id)]
-    )
-  };
-};
-
-export default connect(mapStateToProps)(
-  withMediaQuery([isMobileQuery])(NavBar)
-);
