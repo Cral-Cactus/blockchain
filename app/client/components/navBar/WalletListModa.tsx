@@ -51,30 +51,3 @@ export const WalletListModal = (props: OuterProps) => {
         onOk={props.handleOk}
         onCancel={props.handleCancel}
       >
-        <List
-          dataSource={organisations}
-          renderItem={org => (
-            <List.Item
-              actions={[
-                <a key="list-loadmore-edit" onClick={() => selectOrg([org.id])}>
-                  Manage
-                </a>
-              ]}
-            >
-              <List.Item.Meta
-                title={org.name}
-                description={`Balance: ${formatMoney(
-                  org.master_wallet_balance / 100,
-                  0,
-                  undefined,
-                  undefined,
-                  symbol
-                )}`}
-              />
-            </List.Item>
-          )}
-        />
-      </Modal>
-    </span>
-  );
-};
