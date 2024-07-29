@@ -27,34 +27,3 @@ export const WrappedInput = (field: React.ReactNode, props: any) => {
     </div>
   );
 };
-
-export const AdaptedInput = (props: any) => {
-  const {
-    name,
-    type,
-    input,
-    placeholder,
-    disabled,
-    isPhoneNumber,
-    isMultipleChoice,
-    style
-  } = props;
-
-  const field = isMultipleChoice ? (
-    <MultipleChoice {...props} />
-  ) : isPhoneNumber ? (
-    <AdaptedPhoneInput {...props} />
-  ) : (
-    <input
-      className={styles.input}
-      placeholder={placeholder}
-      name={name}
-      disabled={disabled}
-      type={type}
-      style={style}
-      {...input}
-    />
-  );
-
-  return WrappedInput(field, props);
-};
