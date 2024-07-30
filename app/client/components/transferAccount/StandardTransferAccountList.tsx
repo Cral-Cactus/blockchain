@@ -3,7 +3,7 @@ import { connect } from "react-redux";
 import { Modal, Button, InputNumber, Space, Select, Input } from "antd";
 const { Option } = Select;
 
-import { ReduxState, sempoObjects } from "../../reducers/rootReducer";
+import { ReduxState, stengoObjects } from "../../reducers/rootReducer";
 import {
   EditTransferAccountPayload,
   LoadTransferAccountListPayload,
@@ -83,7 +83,7 @@ const mapDispatchToProps = (dispatch: any): DispatchProps => {
     editTransferAccountRequest: (payload: EditTransferAccountPayload) =>
       dispatch(EditTransferAccountAction.editTransferAccountRequest(payload)),
     createBulkTransferRequest: (body: CreateBulkTransferBody) =>
-      dispatch(apiActions.create(sempoObjects.bulkTransfers, body)),
+      dispatch(apiActions.create(stengoObjects.bulkTransfers, body)),
     loadTransferAccountList: ({
       query,
       path,
@@ -155,62 +155,203 @@ class StandardTransferAccountList extends React.Component<
     });
   };
 
-  onPaginateChange = (page: number, pageSize: number | undefined) => {
-    let per_page = pageSize || 10;
-    this.setState({
-      page,
-      per_page,
+  createBulkTransfer(
+    selected: React.Key[],
+    unSelected: React.Key[],
+    allSelected: boolean
+  ) {
+    let include_accounts, exclude_accounts;
+
+    if (allSelected) {
+      //If the "select all" box is true, only specify the accounts to exclude,
+      // as leaving "include_accounts" blank defaults to everything
+      exclude_accounts = unSelected;
+    } else {
+      //If the "select all" box is false, only specify the accounts to include.
+      include_accounts = selected;
+    }
+
+    //We can typecast because the button is only available if the number is set
+    let amount = 100 * (this.state.amount as number);
+
+    this.props.createBulkTransferRequest({
+      disbursement_amount: amount,
+      transfer_type: this.state.transferType,
+      label: this.state.label,
+      params: decodeURI(this.state.params),
+      search_string: this.state.searchString,
+      include_accounts: include_accounts,
+      exclude_accounts: exclude_accounts,
     });
-  };
-
-  toggleImportModal() {
-    this.setState({ importModalVisible: !this.state.importModalVisible });
   }
 
-  toggleExportModal() {
-    this.setState({ exportModalVisible: !this.state.exportModalVisible });
-  }
-
-  showBulkTransferModal() {
-    this.setState({ bulkTransferModalVisible: true });
-  }
-
-  handleBulkCancel() {
-    this.setState({ bulkTransferModalVisible: false, amount: 0 });
-  }
-
-  setApproval(approve: boolean) {
-    let { selectedRowKeys, unselectedRowKeys, allSelected } = this.state;
+  render() {
+    const { transferAccounts, bulkTransfers, adminTier } = this.props;
+    const {
+      exportModalVisible,
+      importModalVisible,
+      amount,
+      selectedRowKeys,
+      unselectedRowKeys,
+      allSelected,
+      params,
+      searchString,
+    } = this.state;
 
     let include_accounts, exclude_accounts;
 
     if (allSelected) {
+      //If the "select all" box is true, only specify the accounts to exclude,
+      // as leaving "include_accounts" blank defaults to everything
       exclude_accounts = unselectedRowKeys;
     } else {
+      //If the "select all" box is false, only specify the accounts to include.
       include_accounts = selectedRowKeys;
     }
+    const hasSelected =
+      allSelected || (include_accounts && include_accounts.length > 0);
 
-    this.props.editTransferAccountRequest({
-      body: {
-        approve,
-        params: this.state.params,
-        search_string: this.state.searchString,
-        include_accounts: include_accounts,
-        exclude_accounts: exclude_accounts,
+    let numberSet =
+      typeof amount === "number" &&
+      (this.state.transferType === "BALANCE" ? amount >= 0 : amount !== 0);
+
+    const actionButtons = [
+      {
+        label: "Approve",
+        onClick: (IdList: React.Key[]) => this.setApproval(true),
       },
-      path: "bulk",
-    });
-  }
+      {
+        label: "Unapprove",
+        onClick: (IdList: React.Key[]) => this.setApproval(false),
+      },
+      {
+        label: "Create Bulk Transfer",
+        onClick: (IdList: React.Key[]) => this.showBulkTransferModal(),
+      },
+    ];
 
-  updateQueryData(query: Query) {
-    this.setState({
-      params: query.params,
-      searchString: query.searchString,
-      page: 1,
-    });
-  }
+    const dataButtons = [
+      {
+        label: "Import",
+        onClick: () => this.toggleImportModal(),
+      },
+      {
+        label: "Export",
+        onClick: () => this.toggleExportModal(),
+      },
+    ];
 
-  createBulkTransferFromState() {
-    let { selectedRowKeys, unselectedRowKeys, allSelected } = this.state;
-    this.createBulkTransfer(selectedRowKeys, unselectedRowKeys, allSelected);
+    const isViewer = !(
+      this.props.adminTier === "superadmin" ||
+      this.props.adminTier === "stengoadmin" ||
+      this.props.adminTier === "subadmin" ||
+      this.props.adminTier === "admin"
+    );
+
+    return (
+      <>
+        <QueryConstructor
+          onQueryChange={(query: Query) => this.updateQueryData(query)}
+          filterObject="user"
+          disabled={isViewer}
+          pagination={{
+            page: this.state.page,
+            per_page: this.state.per_page,
+          }}
+        />
+        <TransferAccountList
+          params={this.state.params}
+          searchString={this.state.searchString}
+          orderedTransferAccounts={transferAccounts.IdList}
+          actionButtons={isViewer ? [] : actionButtons}
+          dataButtons={isViewer ? [] : dataButtons}
+          onSelectChange={(s: React.Key[], u: React.Key[], a: boolean) =>
+            this.onSelectChange(s, u, a)
+          }
+          paginationOptions={{
+            currentPage: this.state.page,
+            items: this.props.transferAccounts.pagination.items,
+            onChange: (page: number, perPage: number | undefined) =>
+              this.onPaginateChange(page, perPage),
+          }}
+        />
+        <ImportModal
+          isModalVisible={importModalVisible}
+          handleOk={() => this.toggleImportModal()}
+          handleCancel={() => this.toggleImportModal()}
+        />
+
+        <ExportModal
+          isModalVisible={exportModalVisible}
+          handleOk={() => this.toggleExportModal()}
+          handleCancel={() => this.toggleExportModal()}
+          params={params}
+          search_string={searchString}
+          include_accounts={include_accounts}
+          exclude_accounts={exclude_accounts}
+          hasSelected={hasSelected}
+        />
+
+        <Modal
+          title="Create Bulk Transfer"
+          visible={this.state.bulkTransferModalVisible}
+          onOk={this.createBulkTransferFromState}
+          confirmLoading={bulkTransfers.createStatus.isRequesting}
+          onCancel={() => this.handleBulkCancel()}
+          footer={[
+            <Button key="back" onClick={() => this.handleBulkCancel()}>
+              Cancel
+            </Button>,
+            <Button
+              key="submit"
+              type="primary"
+              disabled={this.state.selectedRowKeys.length === 0 || !numberSet}
+              loading={bulkTransfers.createStatus.isRequesting}
+              onClick={() => this.createBulkTransferFromState()}
+            >
+              Create
+            </Button>,
+          ]}
+        >
+          <Space direction="vertical" size="large">
+            <Space>
+              <span>Label: </span>
+              <Input
+                placeholder="Untitled"
+                onChange={(e) => this.setState({ label: e.target.value })}
+              />
+            </Space>
+            <Space>
+              <span>Transfer Type: </span>
+              <Select
+                defaultValue="DISBURSEMENT"
+                style={{ width: 240 }}
+                onChange={(transferType: TransferTypes) =>
+                  this.setState({ transferType })
+                }
+              >
+                <Option value="DISBURSEMENT">Disbursement</Option>
+                <Option value="RECLAMATION">Reclamation</Option>
+                <Option value="BALANCE">Balance</Option>
+              </Select>
+            </Space>
+            <Space>
+              <span>Transfer Amount: </span>
+              <InputNumber
+                defaultValue={Number(amount)}
+                min={0}
+                onChange={(amount: numberInput) => this.setState({ amount })}
+              />
+              {this.props.activeToken.symbol}
+            </Space>
+          </Space>
+        </Modal>
+      </>
+    );
   }
+}
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(StandardTransferAccountList);
