@@ -183,54 +183,136 @@ class TransferAccountManager extends React.Component {
     }
   }
 
-  onNewTransfer() {
-    this.setState((prevState) => ({
-      newTransfer: !prevState.newTransfer,
-    }));
-  }
+  let tracker_link =
+  window.ETH_EXPLORER_URL +
+  "/address/" +
+  this.props.transferAccount.blockchain_address;
 
-  render() {
-    const { is_beneficiary, is_vendor, is_groupaccount, is_tokenagent } =
-      this.state;
-    let accountTypeName;
-    let icon;
-    let color;
+if (is_beneficiary) {
+  accountTypeName =
+    TransferAccountTypes.BENEFICIARY || window.BENEFICIARY_TERM;
+  icon = <UserOutlined alt={"User Icon"} />;
+  color = "#62afb0";
+} else if (is_vendor) {
+  accountTypeName = TransferAccountTypes.VENDOR;
+  icon = <ShopOutlined alt={"Vendor Icon"} />;
+  color = "#e2a963";
+} else if (is_groupaccount) {
+  accountTypeName = TransferAccountTypes.GROUP_ACCOUNT;
+  icon = <UsergroupAddOutlined alt={"Group Account Icon"} />;
+  color = "default";
+} else if (is_tokenagent) {
+  accountTypeName = TransferAccountTypes.TOKEN_AGENT;
+  icon = <UserSwitchOutlined alt={"Token Agent Icon"} />;
+  color = "default";
+}
 
-    if (this.state.newTransfer) {
-      var newTransfer = (
-        <NewTransferManager
-          transfer_account_ids={[this.props.transfer_account_id]}
-          cancelNewTransfer={() => this.onNewTransfer()}
-        />
-      );
-    } else {
-      newTransfer = null;
+return (
+  <Card
+    style={{ marginTop: "1em" }}
+    title={"Account Details"}
+    extra={
+      <Space>
+        <Button onClick={this.onNewTransfer} label={"New Transfer"}>
+          New Transfer
+        </Button>
+        <Button
+          hidden={
+            !(
+              this.props.adminTier === "superadmin" ||
+              this.props.adminTier === "stengoadmin"
+            )
+          }
+          onClick={this.onViewHistory}
+          label={"View History"}
+        >
+          View Account History
+        </Button>
+        <Button
+          type="primary"
+          onClick={this.editTransferAccount}
+          loading={this.props.transferAccounts.editStatus.isRequesting}
+          label={"Save"}
+        >
+          Save
+        </Button>
+      </Space>
     }
+  >
+    <Descriptions size="default" column={4} labelStyle={{ margin: "auto" }}>
+      <Descriptions.Item label="Type">
+        <Tag icon={icon} color={color}>
+          {accountTypeName}
+        </Tag>
+      </Descriptions.Item>
+      <Descriptions.Item label="Balance">
+        {balanceDisplayAmount}
+      </Descriptions.Item>
+      <Descriptions.Item label="Created">
+        <DateTime created={this.state.created} useRelativeTime={false} />
+      </Descriptions.Item>
+      <Descriptions.Item label="Blockchain Address">
+        <a href={tracker_link} target="_blank">
+          {this.props.transferAccount.blockchain_address
+            ? this.props.transferAccount.blockchain_address.substring(
+                2,
+                15
+              ) + "..."
+            : ""}
+        </a>
+      </Descriptions.Item>
+      <Descriptions.Item label="Notes">
+        <TextArea
+          bordered={false}
+          name="notes"
+          value={this.state.notes}
+          onChange={this.handleChange}
+          placeholder="Notes"
+          autoSize
+        />
+      </Descriptions.Item>
+      <Descriptions.Item label="Status">
+        <Select
+          name="is_approved"
+          value={this.state.is_approved}
+          onChange={this.handleStatus}
+          bordered={false}
+        >
+          <Option name="is_approved" disabled value="n/a">
+            n/a
+          </Option>
+          <Option name="is_approved" value={true}>
+            Approved
+          </Option>
+          <Option name="is_approved" value={false}>
+            Unapproved
+          </Option>
+        </Select>
+      </Descriptions.Item>
+      {Number.isInteger(this.state.last_known_card_balance) ? (
+        <Descriptions.Item label="Last Known Card Balance">
+          {cardBalanceDisplayAmount}
+        </Descriptions.Item>
+      ) : (
+        <div />
+      )}
+    </Descriptions>
+    <HistoryDrawer
+      drawerVisible={this.state.viewHistory}
+      onClose={() => this.onViewHistory()}
+      changes={this.props.transferAccountHistory}
+    />
+    <NewTransferManager
+      modalVisible={this.state.newTransfer}
+      transfer_account_ids={[this.props.transfer_account_id]}
+      cancelNewTransfer={() => this.onNewTransfer()}
+    />
+  </Card>
+);
+}
+}
 
-    const currency =
-      this.props.transferAccount &&
-      this.props.transferAccount.token &&
-      this.props.tokens.byId[this.props.transferAccount.token] &&
-      this.props.tokens.byId[this.props.transferAccount.token].symbol;
-    const balanceDisplayAmount = (
-      <p style={{ margin: 0, fontWeight: 100, fontSize: "16px" }}>
-        {formatMoney(
-          this.state.balance / 100,
-          undefined,
-          undefined,
-          undefined,
-          currency
-        )}
-      </p>
-    );
-    const cardBalanceDisplayAmount = (
-      <p style={{ margin: 0, fontWeight: 100, fontSize: "16px" }}>
-        {formatMoney(
-          this.state.last_known_card_balance / 100,
-          undefined,
-          undefined,
-          undefined,
-          currency
-        )}
-      </p>
-    );
+export default connect(
+mapStateToProps,
+mapDispatchToProps
+)(TransferAccountManager);
