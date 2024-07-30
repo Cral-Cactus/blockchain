@@ -333,48 +333,170 @@ render() {
         requested_attributes={this.props.data.requested_attributes}
       />
 
-      <div
-        style={{
-          display: this.props.saveState.saved ? "none" : "flex",
-          justifyContent: "space-between",
+if (props.saved) {
+    return (
+      <StepSpecificFieldsContainer>
+        <svg
+          className="checkmark"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 52 52"
+        >
+          <circle
+            className="checkmark__circle"
+            cx="26"
+            cy="26"
+            r="25"
+            fill="none"
+          />
+          <path
+            className="checkmark__check"
+            fill="none"
+            d="M14.1 27.2l7.1 7.2 16.7-16.8"
+          />
+        </svg>
+        <p style={{ fontSize: "2em" }}>Save success!</p>
+      </StepSpecificFieldsContainer>
+    );
+  }
+
+  return <StepSpecificFieldsContainer></StepSpecificFieldsContainer>;
+};
+
+const CustomColumnFields = function (props) {
+  if (props.selectedColumn) {
+    return (
+      <StepSpecificFieldsContainer>
+        <CustomList
+          customAttributes={props.customAttributes}
+          handleClick={(item) => props.handleCustomAttributeClick(item)}
+        />
+        <div>Please add a label:</div>
+        <CustomInput
+          value={props.customAttribute}
+          onCustomAttributeKeyPress={(e) => props.onCustomAttributeKeyPress(e)}
+        />
+        <StyledButton onClick={() => props.handleAddClick()} label={"Add"}>
+          {" "}
+          Add{" "}
+        </StyledButton>
+      </StepSpecificFieldsContainer>
+    );
+  } else {
+    return (
+      <StepSpecificFieldsContainer>
+        <CustomList
+          customAttributes={props.customAttributes}
+          handleClick={(item) => props.handleCustomAttributeClick(item)}
+        />
+      </StepSpecificFieldsContainer>
+    );
+  }
+};
+
+class CustomInput extends React.Component {
+  componentDidMount() {
+    if (this.nameInput) {
+      this.nameInput.focus();
+    }
+  }
+  render() {
+    return (
+      <Input
+        type="text"
+        onChange={(e) => this.props.onCustomAttributeKeyPress(e)}
+        placeholder="label"
+        value={this.props.value}
+        innerRef={(input) => {
+          this.nameInput = input;
         }}
-      >
-        <StyledButton
-          onClick={() => this.handlePrevClick()}
-          style={
-            this.state.step === 0 ||
-            this.props.saveState.isRequesting ||
-            this.props.saveState.saved
-              ? { opacity: 0, pointerEvents: "None" }
-              : {}
-          }
-          label={"Previous"}
-        >
-          Prev
-        </StyledButton>
+        aria-label={this.props.value}
+      />
+    );
+  }
+}
 
-        <StyledButton
-          onClick={() => this.handleNextClick()}
-          style={
-            this.props.saveState.isRequesting || this.props.saveState.saved
-              ? { opacity: 0, pointerEvents: "None" }
-              : {}
-          }
-          label={nextText}
-        >
-          {nextText}
-        </StyledButton>
-      </div>
+const CustomList = function (props) {
+  return (
+    <ListContainer>
+      {props.customAttributes.map((item) => (
+        <ListItem key={item} onClick={() => props.handleClick(item)}>
+          {item}
 
-      {stepSpecificFields}
-
-      {main_body}
-    </PageWrapper>
+          <CloseIcon>X</CloseIcon>
+        </ListItem>
+      ))}
+    </ListContainer>
   );
-}
-}
+};
 
-const SaveSheetFields = function (props) {
-if (props.isSaving) {
-  return <StepSpecificFieldsContainer>Saving...</StepSpecificFieldsContainer>;
-}
+const Prompt = function (props) {
+  let beneficiaryTermPlural = window.BENEFICIARY_TERM_PLURAL;
+
+  var account_type = props.is_vendor ? "vendors" : `${beneficiaryTermPlural}`;
+
+  if (props.step < props.requested_attributes.length) {
+    var requested_key_display_name = props.requested_attributes[props.step][1];
+    var text = `Which column contains the ${requested_key_display_name} of ${account_type}?`;
+  } else {
+    var later_step_index = props.step - props.requested_attributes.length;
+
+    switch (later_step_index) {
+      case 0:
+        text = "Would you like to add any other custom columns?";
+        break;
+      case 1:
+        text = "Which row is the first that contains data?";
+        break;
+      default:
+        text = "Review and save your upload.";
+        break;
+    }
+  }
+
+  return (
+    <PromptText style={{ display: props.saveState ? "none" : "block" }}>
+      <div style={{ fontWeight: 700, display: "inline", marginRight: "0.5em" }}>
+        Step {props.step + 1} of {props.requested_attributes.length + 3} :
+      </div>
+      {text}
+    </PromptText>
+  );
+};
+
+export default connect(mapStateToProps, mapDispatchToProps)(uploadedTable);
+
+const PromptText = styled.div`
+  font-size: 1.2em;
+  font-weight: 400;
+  color: #555;
+`;
+
+const ListContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  height: 38px;
+`;
+
+const ListItem = styled.div`
+  display: inline-flex;
+  margin: 0.25em;
+  padding: 0.2em 0.5em;
+  border-radius: 0.2rem;
+  background: #c5c5c5;
+  color: white;
+`;
+
+const StepSpecificFieldsContainer = styled.div`
+  min-height: 120px;
+`;
+
+const CloseIcon = styled.div`
+  color: #7b7b7b;
+  margin-left: 1em;
+  font-weight: 600;
+`;
+
+const PageWrapper = styled.div`
+  margin: 1em;
+  text-align: center;
+`;
