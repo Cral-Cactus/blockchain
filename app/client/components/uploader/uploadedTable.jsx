@@ -184,56 +184,197 @@ class uploadedTable extends React.Component {
     }
   }
 
-  onCountryInputKeyPress(e) {
-    var country = e.target.value;
-    this.setState({ country: country, saveError: null });
-  }
+  this.clearSelected();
 
-  onSaveNameKeyPress(e) {
-    var saveName = e.target.value;
-    this.setState({ saveName: saveName, saveError: null });
-    if (e.nativeEvent.keyCode != 13) return;
-    this.handleNextClick();
-  }
+  if (new_normalised_step_index < 0) {
+    let new_requested_attribute =
+      this.props.data.requested_attributes[new_step_index];
+    this.unsetHeader(new_requested_attribute[0]);
+    if (increment > 0) {
+      this.guessColumn(new_requested_attribute[0]);
+    }
+  } else {
+    switch (new_normalised_step_index) {
+      case 0:
+        break;
+      case 1:
+        this.setState({ firstDataRow: null });
+        break;
 
-  guessColumn(requested_attribute_name) {
-    let column_index_guess =
-      this.props.data.column_firstrows[requested_attribute_name];
-
-    console.log("guess", column_index_guess);
-
-    if (isFinite(column_index_guess)) {
-      this.setState({
-        selectedColumn: column_index_guess,
-      });
+      default:
+        break;
     }
   }
 
-  handleStepIncrement(increment) {
-    var current_step_index = this.state.step;
-    var current_normalised_step_index =
-      this.state.step - this.props.data.requested_attributes.length;
+  this.setState({
+    step: Math.min(
+      this.state.step + increment,
+      this.props.data.requested_attributes.length + 2
+    ),
+  });
+}
 
-    var new_step_index = current_step_index + increment;
-    var new_normalised_step_index = current_normalised_step_index + increment;
+handleNextClick() {
+  this.handleStepIncrement(1);
+}
 
-    if (current_normalised_step_index < 0) {
-      var requested_attribute =
-        this.props.data.requested_attributes[current_step_index];
-      this.setHeader(requested_attribute[0]);
-    } else {
-      switch (current_normalised_step_index) {
-        case 0:
-          break;
-        case 1:
-          this.setState({
-            selectedRow: null,
-            firstDataRow: this.state.selectedRow || 0,
-          });
-          break;
+handlePrevClick() {
+  this.handleStepIncrement(-1);
+}
 
-        default:
-          this.processAndSaveDataset();
-          break;
-      }
-    }
+render() {
+  var columnList = Object.keys(this.dataList[0]).map((id) => {
+    return {
+      Header:
+        id in this.state.headerPositions
+          ? this.state.headerPositions[id]
+          : "",
+      accessor: id.toString(),
+    };
+  });
+
+  var data = this.dataList.slice(this.state.firstDataRow);
+
+  if (this.currentStepNormalisedIndex() === 0) {
+    var stepSpecificFields = (
+      <CustomColumnFields
+        selectedColumn={this.state.selectedColumn}
+        customAttributes={this.state.customAttributeList}
+        customAttribute={this.state.customAttribute}
+        onCustomAttributeKeyPress={(e) => this.onCustomAttributeKeyPress(e)}
+        handleCustomAttributeClick={(item) =>
+          this.handleCustomAttributeClick(item)
+        }
+        handleAddClick={() => this.handleAddClick()}
+      />
+    );
+  } else {
+    stepSpecificFields = (
+      <StepSpecificFieldsContainer></StepSpecificFieldsContainer>
+    );
+  }
+
+  if (this.props.saveState.saved) {
+    var added = 0;
+    var updated = 0;
+    var errors = 0;
+
+    var main_body = (
+      <div>
+        <PromptText>Save Complete</PromptText>
+      </div>
+    );
+  } else {
+    main_body = (
+      <ReactTable
+        data={data}
+        columns={columnList}
+        defaultPageSize={10}
+        style={{ margin: "1em" }}
+        sortable={false}
+        getTheadThProps={(state, rowInfo, column, instance) => {
+          return {
+            onClick: (e) =>
+              this.handleTableClick(e, column, rowInfo, rowInfo),
+            style: {
+              height: "35px",
+              fontWeight: 600,
+              background: "#eee",
+            },
+          };
+        }}
+        getPaginationProps={() => {
+          return {
+            style: {
+              display: "None",
+            },
+          };
+        }}
+        getTdProps={(state, rowInfo, column, instance) => {
+          if (rowInfo) {
+            var background =
+              column.id == this.state.selectedColumn ||
+              rowInfo.index == this.state.selectedRow
+                ? "#dff5f3"
+                : "white";
+          } else {
+            background =
+              column.id == this.state.selectedColumn ? "#dff5f3" : "white";
+          }
+
+          var color =
+            column.id in this.state.headerPositions ||
+            this.state.firstDataRow == null
+              ? "#666"
+              : "#ccc";
+
+          return {
+            onClick: (e) =>
+              this.handleTableClick(e, column, rowInfo, instance),
+            style: {
+              background: background,
+              color: color,
+            },
+          };
+        }}
+      />
+    );
+  }
+
+  let nextText = this.currentStepNormalisedIndex() === 2 ? "Save" : "Next";
+
+  return (
+    <PageWrapper>
+      <Prompt
+        step={this.state.step}
+        promptText={this.state.promptText}
+        is_vendor={this.props.is_vendor}
+        saveState={this.props.saveState.saved}
+        requested_attributes={this.props.data.requested_attributes}
+      />
+
+      <div
+        style={{
+          display: this.props.saveState.saved ? "none" : "flex",
+          justifyContent: "space-between",
+        }}
+      >
+        <StyledButton
+          onClick={() => this.handlePrevClick()}
+          style={
+            this.state.step === 0 ||
+            this.props.saveState.isRequesting ||
+            this.props.saveState.saved
+              ? { opacity: 0, pointerEvents: "None" }
+              : {}
+          }
+          label={"Previous"}
+        >
+          Prev
+        </StyledButton>
+
+        <StyledButton
+          onClick={() => this.handleNextClick()}
+          style={
+            this.props.saveState.isRequesting || this.props.saveState.saved
+              ? { opacity: 0, pointerEvents: "None" }
+              : {}
+          }
+          label={nextText}
+        >
+          {nextText}
+        </StyledButton>
+      </div>
+
+      {stepSpecificFields}
+
+      {main_body}
+    </PageWrapper>
+  );
+}
+}
+
+const SaveSheetFields = function (props) {
+if (props.isSaving) {
+  return <StepSpecificFieldsContainer>Saving...</StepSpecificFieldsContainer>;
+}
