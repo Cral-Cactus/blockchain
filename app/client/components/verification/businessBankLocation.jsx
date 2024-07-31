@@ -73,43 +73,6 @@ class BusinessBankLocation extends React.Component {
     this.setState({ bank_country: val });
   }
 
-  isValidated() {
-    const userInput = this._grabUserInput();
-    const validateNewInput = this._validateData(userInput);
-    let isDataValid = false;
-
-    if (
-      Object.keys(validateNewInput).every(k => {
-        return validateNewInput[k] === true;
-      })
-    ) {
-      let bank_account = this.props.businessProfile.bank_accounts[0];
-
-      if (bank_account !== null && typeof bank_account !== "undefined") {
-        this.props.updateBusinessState({
-          bank_accounts: [
-            Object.assign(bank_account, {
-              bank_country: this.state.bank_country
-            })
-          ]
-        });
-      } else {
-        this.props.updateBusinessState({
-          bank_accounts: [{ bank_country: this.state.bank_country }]
-        });
-      }
-
-      this.props.nextStep();
-    } else {
-      this.setState(
-        Object.assign(
-          userInput,
-          validateNewInput,
-          this._validationErrors(validateNewInput)
-        )
-      );
-    }
-
     return isDataValid;
   }
 
