@@ -213,64 +213,227 @@ class BusinessDetails extends React.Component {
     );
   }
 
-  _validateData(data) {
-    let businessValidation;
-    if (this.state.account_type === "BUSINESS") {
-      businessValidation = {
-        phone_val: /^[+]*[(]{0,1}[0-9]{1,4}[)]{0,1}[-\s\./0-9]*$/.test(
-          data.phone
-        ),
-        business_legal_name_val: /.*\S.*/.test(data.business_legal_name),
-        business_type_val: data.business_type !== "select",
-        tax_id_val: /.*\S.*/.test(data.tax_id),
-        website_val: /(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]/g.test(
-          data.website
-        ),
-        date_established_val: /^([0-2][0-9]|(3)[0-1])(\/)(((0)[0-9])|((1)[0-2]))(\/)\d{4}$/i.test(
-          data.date_established
-        ),
-        beneficial_owners_val:
-          data.beneficial_owners.filter(owner => owner.full_name !== "")
-            .length > 0
-      };
-    }
+  render() {
+    const { userId } = this.props;
+    let indvidualAccount = this.state.account_type === "INDIVIDUAL";
 
-    return {
-      ...businessValidation,
-      country_val: /.*\S.*/.test(data.country),
-      street_address_val: /.*\S.*/.test(data.street_address),
-      city_val: /.*\S.*/.test(data.city),
-      region_val: /.*\S.*/.test(data.region),
-      postal_code_val: /^[0-9]*\S.*$/.test(data.postal_code)
-    };
-  }
+    return (
+      <div>
+        {userId === null || typeof userId === "undefined" ? null : (
+          <Row>
+            <InputObject>
+              <InputLabel>Account Type</InputLabel>
+              <StyledSelectKey
+                name="account_type"
+                value={this.state.account_type}
+                onBlur={this.validationCheck}
+                onChange={this.handleInputChange}
+              >
+                <option name="INDIVIDUAL" value="INDIVIDUAL">
+                  INDIVIDUAL
+                </option>
+                <option name="BUSINESS" value="BUSINESS">
+                  BUSINESS
+                </option>
+              </StyledSelectKey>
+              <ErrorMessage state={this.state} input={"account_type"} />
+            </InputObject>
+          </Row>
+        )}
 
-  _validationErrors(val) {
-    const errMsgs = {
-      phone_val_msg: val.phone ? "" : "Please provide a valid phone number",
-      business_legal_name_val_msg: val.business_legal_name
-        ? ""
-        : "Please provide a business name",
-      business_type_val_msg: val.business_type
-        ? ""
-        : "Please select a business type",
-      tax_id_val_msg: val.tax_id ? "" : "Please provide your tax ID",
-      website_val_msg: val.website ? "" : "Please provide a valid website",
-      date_established_val_msg: val.date_established
-        ? ""
-        : "Please provide establishment date as dd/mm/yyyy",
-      country_val_msg: val.country ? "" : "Please select a country",
-      street_address_val_msg: val.street_address
-        ? ""
-        : "Please provide your street address",
-      city_val_msg: val.city ? "" : "Please provide a city",
-      region_val_msg: val.region ? "" : "Please select a region",
-      postal_code_val_msg: val.postal_code
-        ? ""
-        : "Please provide a postal code",
-      beneficial_owners_val_msg: val.beneficial_owners
-        ? ""
-        : "Please add at least one beneficial owner"
-    };
-    return errMsgs;
-  }
+        {indvidualAccount ? null : (
+          <div>
+            <Row>
+              <InputObject>
+                <InputLabel>Phone</InputLabel>
+                <ManagerInput
+                  name="phone"
+                  placeholder="+61411003945"
+                  type="text"
+                  value={this.state.phone}
+                  onBlur={this.validationCheck}
+                  onChange={this.handleInputChange}
+                />
+                <ErrorMessage state={this.state} input={"phone"} />
+              </InputObject>
+            </Row>
+
+            <Row>
+              <InputObject>
+                <InputLabel>Business Legal Name</InputLabel>
+                <ManagerInput
+                  name="business_legal_name"
+                  placeholder="Acme Aus"
+                  type="text"
+                  value={this.state.business_legal_name}
+                  onBlur={this.validationCheck}
+                  onChange={this.handleInputChange}
+                />
+                <ErrorMessage
+                  state={this.state}
+                  input={"business_legal_name"}
+                />
+              </InputObject>
+            </Row>
+
+            <Row>
+              <InputObject>
+                <InputLabel>Business Type</InputLabel>
+                <StyledSelectKey
+                  name="business_type"
+                  value={this.state.business_type}
+                  onBlur={this.validationCheck}
+                  onChange={this.handleInputChange}
+                >
+                  <option name="select" value="select" disabled>
+                    select attribute
+                  </option>
+                  <option name="partnership" value="partnership">
+                    General Partnership
+                  </option>
+                  <option name="for_profit" value="for_profit">
+                    For-Profit Corporation
+                  </option>
+                  <option name="limited_company" value="limited_company">
+                    Limited Company
+                  </option>
+                  <option name="llc" value="llc">
+                    Limited Liability Company (LLC)
+                  </option>
+                  <option name="llp" value="llp">
+                    Limited Liability Partnership (LLP)
+                  </option>
+                  <option name="lp" value="lp">
+                    Limited Partnership (LP)
+                  </option>
+                  <option name="non_profit" value="non_profit">
+                    Non-for Profit
+                  </option>
+                  <option name="other" value="other">
+                    Other
+                  </option>
+                </StyledSelectKey>
+                <ErrorMessage state={this.state} input={"business_type"} />
+              </InputObject>
+            </Row>
+
+            <Row>
+              <InputObject>
+                <InputLabel>Tax Identification Number</InputLabel>
+                <ManagerInput
+                  name="tax_id"
+                  placeholder="Tax ID"
+                  type="text"
+                  value={this.state.tax_id}
+                  onBlur={this.validationCheck}
+                  onChange={this.handleInputChange}
+                />
+                <ErrorMessage state={this.state} input={"tax_id"} />
+              </InputObject>
+            </Row>
+
+            <Row>
+              <InputObject>
+                <InputLabel>Website</InputLabel>
+                <ManagerInput
+                  name="website"
+                  placeholder="https://acmecorp.com"
+                  type="text"
+                  value={this.state.website}
+                  onBlur={this.validationCheck}
+                  onChange={this.handleInputChange}
+                />
+                <ErrorMessage state={this.state} input={"website"} />
+              </InputObject>
+            </Row>
+
+            <Row>
+              <InputObject>
+                <InputLabel>Date Business Established</InputLabel>
+                <ManagerInput
+                  name="date_established"
+                  placeholder="dd/mm/yyyy"
+                  type="text"
+                  value={this.state.date_established}
+                  onBlur={this.validationCheck}
+                  onChange={this.handleInputChange}
+                />
+                <ErrorMessage state={this.state} input={"date_established"} />
+              </InputObject>
+            </Row>
+          </div>
+        )}
+
+        <Row>
+          <InputObject>
+            <InputLabel>Country</InputLabel>
+            <StyledCountryPicker
+              name="country"
+              defaultOptionLabel="Select a country"
+              value={this.state.country}
+              onBlur={this.validationCheck}
+              onChange={val => this.selectCountry(val)}
+            />
+            <ErrorMessage state={this.state} input={"country"} />
+          </InputObject>
+        </Row>
+
+        <Row>
+          <InputObject>
+            <InputLabel>Street Address</InputLabel>
+            <ManagerInput
+              name="street_address"
+              placeholder="255 W 36th Street"
+              type="text"
+              value={this.state.street_address}
+              onBlur={this.validationCheck}
+              onChange={this.handleInputChange}
+            />
+            <ErrorMessage state={this.state} input={"street_address"} />
+          </InputObject>
+        </Row>
+
+        <Row>
+          <InputObject>
+            <InputLabel>Address 2</InputLabel>
+            <ManagerInput
+              name="street_address_2"
+              placeholder="305"
+              type="text"
+              value={this.state.street_address_2}
+              onBlur={this.validationCheck}
+              onChange={this.handleInputChange}
+            />
+            <ErrorMessage state={this.state} input={"street_address_2"} />
+          </InputObject>
+        </Row>
+
+        <Row>
+          <InputObject>
+            <InputLabel>City</InputLabel>
+            <ManagerInput
+              name="city"
+              placeholder="New York City"
+              type="text"
+              value={this.state.city}
+              onBlur={this.validationCheck}
+              onChange={this.handleInputChange}
+            />
+            <ErrorMessage state={this.state} input={"city"} />
+          </InputObject>
+        </Row>
+
+        <Row>
+          <InputObject>
+            <InputLabel>Region</InputLabel>
+            <StyledRegionDropdown
+              blankOptionLabel="No country selected"
+              defaultOptionLabel="Select a region"
+              country={this.state.country}
+              value={this.state.region}
+              onBlur={this.validationCheck}
+              onChange={this.selectRegion}
+            />
+            <ErrorMessage state={this.state} input={"region"} />
+          </InputObject>
+        </Row>
