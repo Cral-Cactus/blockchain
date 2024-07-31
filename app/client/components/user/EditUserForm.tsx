@@ -194,31 +194,258 @@ const EditUserForm = (props: Props) => {
     });
   }
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
-      <Form onFinish={onFinish} layout="vertical" form={form}>
-        <br />
-        <Card
-          title={"User Details"}
-          extra={
-            <Space>
+  <Form.Item style={{ margin: 0 }}>
+  <Button
+    htmlType="submit"
+    type="primary"
+    loading={users.editStatus.isRequesting}
+  >
+    Save
+  </Button>
+</Form.Item>
+</Space>
+}
+>
+<Row gutter={24}>
+<Col span={8}>
+<Form.Item
+  label="Given Name(s)"
+  name="firstName"
+  rules={[{ required: true, message: "Please input first name" }]}
+>
+  <Input />
+</Form.Item>
+</Col>
+<Col span={8}>
+<Form.Item label="Family/Surname" name="lastName">
+  <Input />
+</Form.Item>
+</Col>
+<Col span={8}>
+<Form.Item
+  label="Phone Number"
+  name="phone"
+  valuePropName="value"
+  hasFeedback
+  dependencies={["publicSerialNumber"]}
+  rules={[
+    ({ getFieldValue }) => ({
+      validator(_, value) {
+        if (!value && !getFieldValue("publicSerialNumber")) {
+          return Promise.reject(
+            "Must provide either phone number or ID number"
+          );
+        }
+        return FormValidation.antPhone(value);
+      },
+    }),
+  ]}
+>
+  <AdaptedPhoneInput isPhoneNumber />
+</Form.Item>
+</Col>
+</Row>
+<Row gutter={24}>
+<Col span={8}>
+<Form.Item
+  label="ID Number"
+  name="publicSerialNumber"
+  dependencies={["phone"]}
+  rules={[
+    ({ getFieldValue }) => ({
+      validator(_, value) {
+        if (!value && !getFieldValue("phone")) {
+          return Promise.reject(
+            "Must provide either phone number or ID number"
+          );
+        }
+        return Promise.resolve();
+      },
+    }),
+  ]}
+>
+  <Input
+    disabled={
+      selectedUser.transfer_card &&
+      selectedUser.transfer_card.is_disabled
+    }
+    addonAfter={
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <QrReadingModal
+          disabled={
+            selectedUser.transfer_card &&
+            selectedUser.transfer_card.is_disabled
+          }
+          updateData={(data: string) => setSerialNumber(data)}
+        />
+        {selectedUser.public_serial_number ? (
+          <div>
+            <Divider type="vertical" />
+            <Tooltip title="Disable Card">
               <Button
-                type="text"
-                danger
-                onClick={props.onDeleteUser}
-                loading={users.deleteStatus.isRequesting}
-              >
-                Delete
-              </Button>
-              <Button
-                type="default"
-                onClick={props.onViewHistory}
-                hidden={
-                  !(
-                    props.adminTier === "superadmin" ||
-                    props.adminTier === "stengoadmin"
-                  )
+                disabled={
+                  selectedUser.transfer_card &&
+                  selectedUser.transfer_card.is_disabled
                 }
-              >
-                View History
-              </Button>
+                loading={transferCard.editStatus.isRequesting}
+                onClick={props.onDisableCard}
+                icon={<StopOutlined translate={""} />}
+                type="link"
+                size={"small"}
+              />
+            </Tooltip>
+          </div>
+        ) : (
+          <></>
+        )}
+      </div>
+    }
+  />
+</Form.Item>
+</Col>
+<Col span={8}>
+<Form.Item label="Location" name="location">
+  <Input />
+</Form.Item>
+</Col>
+<Col span={8}>
+<Form.Item label="Account Types" name="accountTypes">
+  <Select mode="multiple">
+    {Object.values(validRoles).map((value, index) => {
+      return (
+        <Option value={value} key={index}>
+          {value}
+        </Option>
+      );
+    })}
+  </Select>
+</Form.Item>
+</Col>
+</Row>
+<Row gutter={24}>
+{selectedUser.one_time_code !== "" ? (
+<Col span={8}>
+  <Form.Item label="One Time Code" name="oneTimeCode">
+    <Input disabled={true} />
+  </Form.Item>
+</Col>
+) : null}
+<Col span={8}>
+<Form.Item label="Failed Pin Attempts" name="failedPinAttempts">
+  <Input
+    disabled={true}
+    addonAfter={
+      <Tooltip title="Reset Pin">
+        <Button
+          loading={users.pinStatus.isRequesting}
+          onClick={props.onResetPin}
+          size={"small"}
+          type={"link"}
+          icon={<RedoOutlined translate={""} />}
+        />
+      </Tooltip>
+    }
+  />
+</Form.Item>
+</Col>
+<Col span={8}>
+<Form.Item
+  label="Referred By"
+  name="referredBy"
+  hasFeedback
+  rules={[
+    {
+      validator: (_: any, value: any) =>
+        FormValidation.antPhone(value),
+    },
+  ]}
+>
+  <AdaptedPhoneInput isPhoneNumber />
+</Form.Item>
+</Col>
+</Row>
+<Row>
+<Col span={8}>
+{/*
+  // @ts-ignore */}
+<GetVerified userId={selectedUser.id} />
+</Col>
+</Row>
+</Card>
+
+<br />
+
+{Object.keys(customAttributes || {}).length >= 1 ||
+businessUsageName ||
+"" ? (
+<Card title={"Other Attributes"}>
+<Row gutter={24}>{custom_attribute_list || null}</Row>
+{transferUsages.length > 0 ? (
+<Row gutter={24}>
+  <Col span={8}>
+    <Form.Item name="businessUsage" label="Business Category">
+      <Select>
+        {optionizeUsages().map(
+          (
+            usage: { value: string; name: React.ReactNode },
+            index: string | number | undefined
+          ) => {
+            return (
+              <Option value={usage.value} key={index}>
+                {usage.name}
+              </Option>
+            );
+          }
+        )}
+      </Select>
+    </Form.Item>
+    <Form.Item
+      noStyle
+      shouldUpdate={(prevValues, currentValues) =>
+        prevValues.businessUsage !== currentValues.businessUsage
+      }
+    >
+      {({ getFieldValue }) =>
+        getFieldValue("businessUsage") &&
+        getFieldValue("businessUsage").toLowerCase() ===
+          "other" ? (
+          <Form.Item
+            name="usageOtherSpecific"
+            label="Please specify the category"
+            rules={[
+              {
+                required: true,
+                message: "Please specify the category!",
+              },
+            ]}
+          >
+            <Input />
+          </Form.Item>
+        ) : null
+      }
+    </Form.Item>
+  </Col>
+</Row>
+) : null}
+<Row gutter={24}>
+<Col span={8}>{profilePicture || null}</Col>
+</Row>
+</Card>
+) : null}
+</Form>
+</div>
+);
+};
+
+const mapStateToProps = (state: ReduxState): StateProps => {
+return {
+history: state.users.loadHistory.changes,
+// @ts-ignore
+viewHistory: state.viewHistory,
+// @ts-ignore
+activeOrganisation: state.organisations.byId[state.login.organisationId],
+adminTier: state.login.adminTier,
+};
+};
+
+export default connect(mapStateToProps)(EditUserForm);
