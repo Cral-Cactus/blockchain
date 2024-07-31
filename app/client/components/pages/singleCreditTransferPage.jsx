@@ -30,39 +30,3 @@ class SingleCreditTransferPage extends React.Component {
     let creditTransferId = parseInt(pathname_array[1]);
     this.props.loadCreditTransferList(creditTransferId);
   }
-
-  render() {
-    let pathname_array = location.pathname.split("/").slice(1);
-    let url_provided = pathname_array[1];
-    let creditTransferId = parseInt(url_provided);
-    let creditTransferComponent;
-    if (this.props.creditTransfers.byId[creditTransferId]) {
-      creditTransferComponent = (
-        <SingleCreditTransfer creditTransferId={creditTransferId} />
-      );
-    } else {
-      creditTransferComponent = (
-        <Card style={{ textAlign: "center" }}>
-          <p>No Such Credit Transfer: {url_provided}</p>
-        </Card>
-      );
-    }
-
-    if (this.props.creditTransfers.loadStatus.isRequesting === true) {
-      return (
-        <WrapperDiv>
-          <CenterLoadingSideBarActive>
-            <LoadingSpinner />
-          </CenterLoadingSideBarActive>
-        </WrapperDiv>
-      );
-    } else {
-      return <div>{creditTransferComponent}</div>;
-    }
-  }
-}
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(organizationWrapper(SingleCreditTransferPage));
