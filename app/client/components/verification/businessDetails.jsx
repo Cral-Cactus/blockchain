@@ -380,60 +380,174 @@ class BusinessDetails extends React.Component {
 
         <Row>
           <InputObject>
-            <InputLabel>Street Address</InputLabel>
+            <InputLabel>Postal Code</InputLabel>
             <ManagerInput
-              name="street_address"
-              placeholder="255 W 36th Street"
+              name="postal_code"
+              placeholder="100018"
               type="text"
-              value={this.state.street_address}
+              value={this.state.postal_code}
               onBlur={this.validationCheck}
               onChange={this.handleInputChange}
             />
-            <ErrorMessage state={this.state} input={"street_address"} />
+            <ErrorMessage state={this.state} input={"postal_code"} />
           </InputObject>
         </Row>
 
-        <Row>
-          <InputObject>
-            <InputLabel>Address 2</InputLabel>
-            <ManagerInput
-              name="street_address_2"
-              placeholder="305"
-              type="text"
-              value={this.state.street_address_2}
-              onBlur={this.validationCheck}
-              onChange={this.handleInputChange}
-            />
-            <ErrorMessage state={this.state} input={"street_address_2"} />
-          </InputObject>
-        </Row>
+        {indvidualAccount ? null : (
+          <Row>
+            <InputObject>
+              <InputLabel>
+                Beneficial Owners (Directly or indirectly owns more than 25% of
+                the Applicant or has effective control over the Applicant)
+              </InputLabel>
+              {this.state.beneficial_owners.map((owner, index) => {
+                let ownerId = `owner-${index}`;
+                return (
+                  <div key={index}>
+                    <ManagerInput
+                      style={{ margin: "0.5em 0" }}
+                      name={ownerId}
+                      data-id={index}
+                      placeholder="John Smith"
+                      type="text"
+                      value={this.state.beneficial_owners[index].full_name}
+                      onChange={this.handleBeneficialOwner}
+                    />
+                  </div>
+                );
+              })}
+              <ErrorMessage state={this.state} input={"beneficial_owners"} />
+              <TheRealInputButton onClick={this.addOwner}>
+                Add new owner
+              </TheRealInputButton>
+            </InputObject>
+          </Row>
+        )}
 
-        <Row>
-          <InputObject>
-            <InputLabel>City</InputLabel>
-            <ManagerInput
-              name="city"
-              placeholder="New York City"
-              type="text"
-              value={this.state.city}
-              onBlur={this.validationCheck}
-              onChange={this.handleInputChange}
-            />
-            <ErrorMessage state={this.state} input={"city"} />
-          </InputObject>
-        </Row>
+        <ThemeProvider theme={DefaultTheme}>
+          <AsyncButton
+            buttonText={<span>Next</span>}
+            onClick={this.isValidated}
+            isLoading={this.props.editStatus.isRequesting}
+            buttonStyle={{ display: "flex" }}
+            label={"Next"}
+          />
+        </ThemeProvider>
+      </div>
+    );
+  }
+}
 
-        <Row>
-          <InputObject>
-            <InputLabel>Region</InputLabel>
-            <StyledRegionDropdown
-              blankOptionLabel="No country selected"
-              defaultOptionLabel="Select a region"
-              country={this.state.country}
-              value={this.state.region}
-              onBlur={this.validationCheck}
-              onChange={this.selectRegion}
-            />
-            <ErrorMessage state={this.state} input={"region"} />
-          </InputObject>
-        </Row>
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(BusinessDetails);
+
+const ManagerInput = styled(Input)`
+  margin: 0;
+`;
+
+const InputObject = styled.label`
+  display: block;
+  padding: 1em;
+  font-size: 15px;
+`;
+
+const InputLabel = styled.div`
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 5px;
+`;
+
+const StyledSelectKey = styled(StyledSelect)`
+  box-shadow: 0 0 0 1px rgba(44, 45, 48, 0.15);
+  font: 400 12px system-ui;
+  color: #777;
+  padding: 0 0 0 10px;
+  margin: 5px;
+  line-height: 25px;
+  height: 25px;
+`;
+
+const StyledCountryPicker = styled(CountryDropdown)`
+  box-shadow: 0 0 0 1px rgba(44, 45, 48, 0.15);
+  font: 400 12px system-ui !important;
+  color: #777;
+  padding: 0 0 0 10px;
+  margin: 5px;
+  line-height: 25px;
+  height: 25px;
+  outline: none;
+  border: 0;
+  white-space: nowrap;
+  display: inline-block;
+  background: ${props => props.theme.background};
+  font-size: 1em;
+  font-weight: 200;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  text-decoration: none;
+  -webkit-transition: all 0.15s ease;
+  transition: all 0.15s ease;
+  &:hover {
+    //background-color: #34b0b3;
+    background-color: ${props => props.theme.backgroundColor};
+  }
+`;
+
+const StyledRegionDropdown = styled(RegionDropdown)`
+  box-shadow: 0 0 0 1px rgba(44, 45, 48, 0.15);
+  font: 400 12px system-ui !important;
+  color: #777;
+  padding: 0 0 0 10px;
+  margin: 5px;
+  line-height: 25px;
+  height: 25px;
+  outline: none;
+  border: 0;
+  white-space: nowrap;
+  display: inline-block;
+  background: ${props => props.theme.background};
+  font-size: 1em;
+  font-weight: 200;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  text-decoration: none;
+  -webkit-transition: all 0.15s ease;
+  transition: all 0.15s ease;
+  &:hover {
+    //background-color: #34b0b3;
+    background-color: ${props => props.theme.backgroundColor};
+  }
+`;
+
+const TheRealInputButton = styled.label`
+  background-color: #30a4a6;
+  color: #fff;
+  margin: 0.5em 0;
+  line-height: 25px;
+  height: 25px;
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  border: 0;
+  white-space: nowrap;
+  display: inline-block;
+  padding: 0 14px;
+  box-shadow: 0px 2px 0px 0 rgba(51, 51, 79, 0.08);
+  font-size: 1em;
+  font-weight: 400;
+  text-transform: uppercase;
+  -webkit-letter-spacing: 0.025em;
+  -moz-letter-spacing: 0.025em;
+  -ms-letter-spacing: 0.025em;
+  letter-spacing: 0.025em;
+  text-decoration: none;
+  -webkit-transition: all 0.15s ease;
+  transition: all 0.15s ease;
+  &:hover {
+    background-color: #34b0b3;
+  }
+`;
