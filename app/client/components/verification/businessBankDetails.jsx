@@ -82,43 +82,144 @@ class BusinessBankDetails extends React.Component {
     });
   }
 
-  isValidated() {
-    const userInput = this._grabUserInput();
-    const validateNewInput = this._validateData(userInput);
-
-    if (
-      Object.keys(validateNewInput).every(k => {
-        return validateNewInput[k] === true;
-      })
-    ) {
-      let bank_account = this.props.businessProfile.bank_accounts[0];
-
-      if (bank_account !== null && typeof bank_account !== "undefined") {
-        if (Object.keys(bank_account).length === 1) {
-          this.props.createBankAccount(userInput);
-        } else {
-          this.props.editBankAccount(userInput, bank_account.id);
-        }
-      }
-    } else {
-      this.setState(
-        Object.assign(
-          userInput,
-          validateNewInput,
-          this._validationErrors(validateNewInput)
-        )
-      );
-    }
-  }
-
-  _grabUserInput() {
-    let { routing_number, account_number, currency } = this.state;
-    let { businessProfile } = this.props;
+  _validateData(data) {
     return {
-      routing_number: routing_number,
-      account_number: account_number,
-      currency: currency,
-      bank_country: businessProfile.bank_accounts[0].bank_country,
-      kyc_application_id: businessProfile.id
+      routing_number_val: /^[0-9]*\S.*$/.test(data.routing_number),
+      account_number_val: /^[0-9]*\S.*$/.test(data.account_number),
+      currency_val: data.currency !== "select"
     };
   }
+
+  _validationErrors(val) {
+    const errMsgs = {
+      routing_number_val_msg: val.routing_number
+        ? ""
+        : "Please provide a valid routing number",
+      account_number_val_msg: val.account_number
+        ? ""
+        : "Please provide a valid account_number",
+      currency_val_msg: val.currency ? "" : "Please select a currency"
+    };
+    return errMsgs;
+  }
+
+  render() {
+    let { businessProfile } = this.props;
+    let currencyOptions = ["aud", "eur", "gbp", "usd"];
+
+    return (
+      <div>
+        <Row>
+          <InputObject>
+            <InputLabel>
+              {businessProfile.bank_accounts[0].bank_country === "Australia"
+                ? "BSB"
+                : "Routing Number"}
+            </InputLabel>
+            <ManagerInput
+              name="routing_number"
+              placeholder={
+                businessProfile.bank_accounts[0].bank_country === "Australia"
+                  ? "123123"
+                  : "123123123"
+              }
+              type="text"
+              value={this.state.routing_number}
+              onChange={this.handleInputChange}
+            />
+            <ErrorMessage state={this.state} input={"routing_number"} />
+          </InputObject>
+        </Row>
+
+        <Row>
+          <InputObject>
+            <InputLabel>Account Number</InputLabel>
+            <ManagerInput
+              name="account_number"
+              placeholder="12341234"
+              type="text"
+              value={this.state.account_number}
+              onChange={this.handleInputChange}
+            />
+            <ErrorMessage state={this.state} input={"account_number"} />
+          </InputObject>
+        </Row>
+
+        <Row>
+          <InputObject>
+            <InputLabel>Currency</InputLabel>
+            <StyledSelectKey
+              name="currency"
+              value={this.state.currency}
+              onChange={this.handleInputChange}
+            >
+              <option name="select" value="select" disabled>
+                Select
+              </option>
+              {currencyOptions.map((currency, index) => {
+                return (
+                  <option key={index} name={currency} value={currency}>
+                    {currency}
+                  </option>
+                );
+              })}
+            </StyledSelectKey>
+            <ErrorMessage state={this.state} input={"currency"} />
+          </InputObject>
+        </Row>
+
+        <ThemeProvider theme={DefaultTheme}>
+          <div style={{ display: "flex" }}>
+            <AsyncButton
+              buttonText={<span>Back</span>}
+              onClick={this.props.backStep}
+              label={"Back"}
+            />
+            <AsyncButton
+              buttonText={<span>Next</span>}
+              label={"Next"}
+              onClick={this.isValidated}
+              isLoading={
+                this.props.editBankAccountStatus.isRequesting ||
+                this.props.createBankAccountStatus.isRequesting
+              }
+              buttonStyle={{ display: "flex" }}
+            />
+          </div>
+        </ThemeProvider>
+      </div>
+    );
+  }
+}
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(BusinessBankDetails);
+
+const ManagerInput = styled(Input)`
+  margin: 0;
+`;
+
+const InputObject = styled.label`
+  display: block;
+  padding: 1em;
+  font-size: 15px;
+`;
+
+const InputLabel = styled.div`
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 5px;
+`;
+
+const StyledSelectKey = styled(StyledSelect)`
+  box-shadow: 0 0 0 1px rgba(44, 45, 48, 0.15);
+  font: 400 12px system-ui;
+  color: #777;
+  padding: 0 0 0 10px;
+  margin: 5px;
+  line-height: 25px;
+  height: 25px;
+`;
