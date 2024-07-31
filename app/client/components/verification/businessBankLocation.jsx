@@ -54,3 +54,177 @@ class BusinessBankLocation extends React.Component {
     this.validationCheck = this.validationCheck.bind(this);
     this.isValidated = this.isValidated.bind(this);
   }
+
+  componentDidMount() {
+    let { businessProfile } = this.props;
+
+    let bank_account = businessProfile.bank_accounts[0];
+
+    if (bank_account !== null && typeof bank_account !== "undefined") {
+      Object.keys(this.state).map(key => {
+        if (bank_account[key] !== null) {
+          this.setState({ [key]: bank_account[key] });
+        }
+      });
+    }
+  }
+
+  selectCountry(val) {
+    this.setState({ bank_country: val });
+  }
+
+  isValidated() {
+    const userInput = this._grabUserInput();
+    const validateNewInput = this._validateData(userInput);
+    let isDataValid = false;
+
+    if (
+      Object.keys(validateNewInput).every(k => {
+        return validateNewInput[k] === true;
+      })
+    ) {
+      let bank_account = this.props.businessProfile.bank_accounts[0];
+
+      if (bank_account !== null && typeof bank_account !== "undefined") {
+        this.props.updateBusinessState({
+          bank_accounts: [
+            Object.assign(bank_account, {
+              bank_country: this.state.bank_country
+            })
+          ]
+        });
+      } else {
+        this.props.updateBusinessState({
+          bank_accounts: [{ bank_country: this.state.bank_country }]
+        });
+      }
+
+      this.props.nextStep();
+    } else {
+      this.setState(
+        Object.assign(
+          userInput,
+          validateNewInput,
+          this._validationErrors(validateNewInput)
+        )
+      );
+    }
+
+    return isDataValid;
+  }
+
+  _grabUserInput() {
+    let { bank_country } = this.state;
+    return {
+      bank_country: bank_country
+    };
+  }
+
+  validationCheck() {
+    if (!this._validateOnDemand) {
+      return;
+    }
+
+    const userInput = this._grabUserInput();
+    const validateNewInput = this._validateData(this.state);
+
+    this.setState(
+      Object.assign(
+        userInput,
+        validateNewInput,
+        this._validationErrors(validateNewInput)
+      )
+    );
+  }
+
+  _validateData(data) {
+    return {
+      bank_country_val: /.*\S.*/.test(data.bank_country)
+    };
+  }
+
+  _validationErrors(val) {
+    const errMsgs = {
+      bank_country_val_msg: val.bank_country ? "" : "Please select a country"
+    };
+    return errMsgs;
+  }
+
+  render() {
+    const { businessProfile } = this.props;
+    let isIndividual = businessProfile.account_type === "INDIVIDUAL";
+    return (
+      <div>
+        <h3>Location of {isIndividual ? null : "Business"} Bank Account</h3>
+
+        <Row>
+          <InputObject>
+            <InputLabel>Country</InputLabel>
+            <StyledCountryPicker
+              name="country"
+              defaultOptionLabel="Select a country"
+              value={this.state.bank_country}
+              onBlur={this.validationCheck}
+              onChange={val => this.selectCountry(val)}
+            />
+            <ErrorMessage state={this.state} input={"bank_country"} />
+          </InputObject>
+        </Row>
+
+        <ThemeProvider theme={DefaultTheme}>
+          <div>
+            <AsyncButton
+              buttonText={<span>Back</span>}
+              onClick={this.props.backStep}
+              label={"Back"}
+            />
+            <AsyncButton
+              buttonText={<span>Next</span>}
+              onClick={this.isValidated}
+              label={"Next"}
+            />
+          </div>
+        </ThemeProvider>
+      </div>
+    );
+  }
+}
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(BusinessBankLocation);
+
+const SecondaryText = styled.p`
+  color: #555555;
+  font-size: 12px;
+  padding-top: 0;
+  margin: 0;
+  font-weight: 600;
+`;
+
+const StyledCountryPicker = styled(CountryDropdown)`
+  box-shadow: 0 0 0 1px rgba(44, 45, 48, 0.15);
+  font: 400 12px system-ui !important;
+  color: #777;
+  padding: 0 0 0 10px;
+  margin: 5px;
+  line-height: 25px;
+  height: 25px;
+  outline: none;
+  border: 0;
+  white-space: nowrap;
+  display: inline-block;
+  background: ${props => props.theme.background};
+  font-size: 1em;
+  font-weight: 200;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  text-decoration: none;
+  -webkit-transition: all 0.15s ease;
+  transition: all 0.15s ease;
+  &:hover {
+    //background-color: #34b0b3;
+    background-color: ${props => props.theme.backgroundColor};
+  }
+`;
