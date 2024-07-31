@@ -231,32 +231,158 @@ class SingleBulkDisbursementPage extends React.Component {
       completion_tag = <Tag color="#e2a963">Unknown</Tag>;
     }
 
-    var creditTransfersById = {};
-    creditTransferList.forEach((transfer) => {
-      creditTransfersById[transfer.id] = transfer;
-    });
-    creditTransferList["byId"] = creditTransfersById;
-    creditTransferList["loadStatus"] = { isRequesting: false };
+        let displayList =
+      completion_status === "COMPLETE" ? (
+        <Card title="Included Transfers" style={{ margin: "10px" }}>
+          <DisconnectedCreditTransferList
+            creditTransfers={creditTransferList}
+            users={users}
+            paginationOptions={{
+              currentPage: this.state.page,
+              items: items,
+              onChange: (page, perPage) => this.onPaginateChange(page, perPage),
+            }}
+          />
+        </Card>
+      ) : (
+        <Card title="Included Accounts" style={{ margin: "10px" }}>
+          <DisconnectedTransferAccountList
+            params={this.state.params}
+            searchString={this.state.searchString}
+            orderedTransferAccounts={transferAccountList.IdList}
+            users={users}
+            transferAccounts={transferAccountList}
+            actionButtons={[]}
+            dataButtons={[]}
+            disableCheckboxes={true}
+            paginationOptions={{
+              currentPage: this.state.page,
+              items: items,
+              onChange: (page, perPage) => this.onPaginateChange(page, perPage),
+            }}
+          />
+        </Card>
+      );
 
-    var transferAccountsById = {};
-    transferAccountList.forEach((transfer) => {
-      transferAccountsById[transfer.id] = transfer;
-    });
-    var IdList = [];
-    transferAccountList.forEach((transferAccount) => {
-      IdList.push(transferAccount.id);
-    });
-    transferAccountList["byId"] = transferAccountsById;
-    transferAccountList["loadStatus"] = { isRequesting: false };
-    transferAccountList["IdList"] = IdList;
+    return (
+      <WrapperDiv>
+        <PageWrapper>
+          {asyncModal}
+          <Card
+            title={label || `Bulk Transfer ${bulkId}`}
+            style={{ margin: "10px" }}
+          >
+            <p>
+              {" "}
+              <b>ID:</b> {bulkId || " "}
+            </p>
+            <p>
+              {" "}
+              <b>Created by:</b>
+              <a
+                style={{ cursor: "pointer" }}
+                onClick={() =>
+                  this.navigateToUser(creatorUser && creatorUser.id)
+                }
+              >
+                {creatorUser && " " + creatorUser.email}
+              </a>
+              {" at " +
+                (bulkItem &&
+                  moment
+                    .utc(bulkItem.created)
+                    .local()
+                    .format("YYYY-MM-DD HH:mm:ss")) || ""}{" "}
+            </p>
+            <p>
+              {" "}
+              <b>Reviewed By:</b>
+              {approversList}
+            </p>
+            <p>
+              {" "}
+              <b>Approval status:</b> {tag}
+            </p>
+            <p>
+              {" "}
+              <b>Processing status:</b> {completion_tag}
+            </p>
+            <p>
+              {" "}
+              <b>Transfer Type:</b> {transferType || " "}
+            </p>
+            <p>
+              {" "}
+              <b>Number of recipients:</b>{" "}
+              {(bulkItem && bulkItem.recipient_count) || ""}{" "}
+            </p>
+            <p>
+              {" "}
+              <b hidden={transferType == "WITHDRAWAL"}>
+                Amount per recipient:
+              </b>{" "}
+              {individualAmount || ""}{" "}
+            </p>
+            <p>
+              {" "}
+              <b>Total amount transferred:</b> {totalAmount || ""}{" "}
+            </p>
+            <p>
+              {" "}
+              <b>Errors:</b>{" "}
+              {bulkItem &&
+                bulkItem.errors &&
+                bulkItem.errors.length > 0 &&
+                bulkItem.errors.map((error) => {
+                  return <Tag color="#f16853">{error}</Tag>;
+                })}
+            </p>
+            <p>
+              {" "}
+              <b>Notes: </b>
+              {status == "APPROVED" || status == "REJECTED" ? (
+                this.state.notes || notes
+              ) : (
+                <TextArea
+                  style={{ maxWidth: "460px" }}
+                  value={this.state.notes || notes}
+                  placeholder=""
+                  autoSize
+                  onChange={(e) => this.setState({ notes: e.target.value })}
+                />
+              )}
+            </p>
 
-    var users = [];
-    transferAccountList.forEach((transferAccount) => {
-      users = users.concat(transferAccount.users);
-    });
-    var usersByID = {};
-    users.forEach((transfer) => {
-      usersByID[transfer.id] = transfer;
-    });
-    users["byId"] = usersByID;
-    users["loadStatus"] = { isRequesting: false };
+            <Space>
+              <Button
+                onClick={() => this.onReject()}
+                disabled={status == "APPROVED" || status == "REJECTED"}
+                loading={this.props.bulkTransfers.modifyStatus.isRequesting}
+                hidden={transferType == "WITHDRAWAL"}
+              >
+                Reject
+              </Button>
+
+              <Button
+                onClick={() => this.onComplete()}
+                disabled={status == "APPROVED" || status == "REJECTED"}
+                loading={this.props.bulkTransfers.modifyStatus.isRequesting}
+                hidden={transferType == "WITHDRAWAL"}
+              >
+                Approve
+              </Button>
+            </Space>
+
+            {info}
+          </Card>
+          {displayList}
+        </PageWrapper>
+      </WrapperDiv>
+    );
+  }
+}
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(organizationWrapper(SingleBulkDisbursementPage));
