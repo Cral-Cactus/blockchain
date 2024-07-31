@@ -61,36 +61,3 @@ class SingleUserPage extends React.Component {
         </Card>
       );
     }
-
-    if (this.props.users.loadStatus.isRequesting === true) {
-      return (
-        <WrapperDiv>
-          <CenterLoadingSideBarActive>
-            <LoadingSpinner />
-          </CenterLoadingSideBarActive>
-        </WrapperDiv>
-      );
-    } else {
-      return (
-        <WrapperDiv>
-          <PageWrapper>
-            <ThemeProvider theme={LightTheme}>{userComponent}</ThemeProvider>
-          </PageWrapper>
-        </WrapperDiv>
-      );
-    }
-  }
-}
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(organizationWrapper(SingleUserPage));
-
-const WrapperDiv = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
-  position: relative;
-`;
