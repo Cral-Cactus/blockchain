@@ -327,60 +327,6 @@ class SingleBulkDisbursementPage extends React.Component {
               {" "}
               <b>Total amount transferred:</b> {totalAmount || ""}{" "}
             </p>
-            <p>
-              {" "}
-              <b>Errors:</b>{" "}
-              {bulkItem &&
-                bulkItem.errors &&
-                bulkItem.errors.length > 0 &&
-                bulkItem.errors.map((error) => {
-                  return <Tag color="#f16853">{error}</Tag>;
-                })}
-            </p>
-            <p>
-              {" "}
-              <b>Notes: </b>
-              {status == "APPROVED" || status == "REJECTED" ? (
-                this.state.notes || notes
-              ) : (
-                <TextArea
-                  style={{ maxWidth: "460px" }}
-                  value={this.state.notes || notes}
-                  placeholder=""
-                  autoSize
-                  onChange={(e) => this.setState({ notes: e.target.value })}
-                />
-              )}
-            </p>
-
-            <Space>
-              <Button
-                onClick={() => this.onReject()}
-                disabled={status == "APPROVED" || status == "REJECTED"}
-                loading={this.props.bulkTransfers.modifyStatus.isRequesting}
-                hidden={transferType == "WITHDRAWAL"}
-              >
-                Reject
-              </Button>
-
-              <Button
-                onClick={() => this.onComplete()}
-                disabled={status == "APPROVED" || status == "REJECTED"}
-                loading={this.props.bulkTransfers.modifyStatus.isRequesting}
-                hidden={transferType == "WITHDRAWAL"}
-              >
-                Approve
-              </Button>
-            </Space>
-
-            {info}
-          </Card>
-          {displayList}
-        </PageWrapper>
-      </WrapperDiv>
-    );
-  }
-}
 
 export default connect(
   mapStateToProps,
